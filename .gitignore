@@ -98,3 +98,5 @@ config.mk
 *.apj
 .gdbinit
 /.vscode
+.bash_history
+.pydevproject
