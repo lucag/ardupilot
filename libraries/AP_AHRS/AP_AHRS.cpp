@@ -323,7 +323,7 @@ void AP_AHRS::calc_trig(const Matrix3f &rot,
         sr = rot.c.y / cp;
     }
 
-    if (is_zero(cp) || isinf(cr) || isnan(cr) || isinf(sr) || isnan(sr)) {
+    if (is_zero(cp) || std::isinf(cr) || std::isnan(cr) || std::isinf(sr) || std::isnan(sr)) {
         float r, p, y;
         rot.to_euler(&r, &p, &y);
         cr = cosf(r);

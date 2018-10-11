@@ -43,7 +43,7 @@ template <typename T>
 float safe_asin(const T v)
 {
     const float f = static_cast<const float>(v);
-    if (isnan(f)) {
+    if (std::isnan(f)) {
         return 0.0f;
     }
     if (f >= 1.0f) {
@@ -64,7 +64,7 @@ template <typename T>
 float safe_sqrt(const T v)
 {
     float ret = sqrtf(static_cast<float>(v));
-    if (isnan(ret)) {
+    if (std::isnan(ret)) {
         return 0;
     }
     return ret;
@@ -184,7 +184,7 @@ T constrain_value(const T amt, const T low, const T high)
     // the check for NaN as a float prevents propagation of floating point
     // errors through any function that uses constrain_value(). The normal
     // float semantics already handle -Inf and +Inf
-    if (isnan(amt)) {
+    if (std::isnan(amt)) {
         return (low + high) / 2;
     }
 

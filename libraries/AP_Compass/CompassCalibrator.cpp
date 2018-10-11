@@ -186,7 +186,7 @@ void CompassCalibrator::update(bool &failure) {
 
     if(_status == COMPASS_CAL_RUNNING_STEP_ONE) {
         if (_fit_step >= 10) {
-            if(is_equal(_fitness,_initial_fitness) || isnan(_fitness)) {           //if true, means that fitness is diverging instead of converging
+            if(is_equal(_fitness,_initial_fitness) || std::isnan(_fitness)) {           //if true, means that fitness is diverging instead of converging
                 set_status(COMPASS_CAL_FAILED);
                 failure = true;
             }
@@ -350,7 +350,7 @@ bool CompassCalibrator::set_status(compass_cal_status_t status) {
 }
 
 bool CompassCalibrator::fit_acceptable() {
-    if( !isnan(_fitness) &&
+    if( !std::isnan(_fitness) &&
         _params.radius > 150 && _params.radius < 950 && //Earth's magnetic field strength range: 250-850mG
         fabsf(_params.offset.x) < _offset_max &&
         fabsf(_params.offset.y) < _offset_max &&
@@ -569,7 +569,7 @@ void CompassCalibrator::run_sphere_fit()
     }
     //--------------------Levenberg-Marquardt-part-ends-here--------------------------------//
 
-    if(!isnan(fitness) && fitness < _fitness) {
+    if(!std::isnan(fitness) && fitness < _fitness) {
         _fitness = fitness;
         _params = fit1_params;
         update_completion_mask();

@@ -1782,7 +1782,7 @@ void AP_Param::convert_parent_class(uint8_t param_key, void *object_pointer,
  */
 void AP_Param::set_float(float value, enum ap_var_type var_type)
 {
-    if (isnan(value) || isinf(value)) {
+    if (std::isnan(value) || std::isinf(value)) {
         return;
     }
 

@@ -8,7 +8,7 @@ else
     echo "Homebrew installed"
 fi
 
-#install xconde dependencies
+# Install xcode dependencies
 xcode-select --install
 
 brew tap ardupilot/homebrew-px4

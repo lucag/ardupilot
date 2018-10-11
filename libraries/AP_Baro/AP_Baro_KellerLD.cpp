@@ -125,7 +125,7 @@ bool AP_Baro_KellerLD::_init()
     memcpy(&_p_max, &cal_data, sizeof(_p_max));
     Debug("data: %d, p_max: %.2f", cal_data, _p_max);
 
-    cal_read_ok &= !isnan(_p_min) && !isinf(_p_min) && !isnan(_p_max) && !isinf(_p_max);
+    cal_read_ok &= !std::isnan(_p_min) && !std::isinf(_p_min) && !std::isnan(_p_max) && !std::isinf(_p_max);
 
     cal_read_ok &= _p_max > _p_min;
 

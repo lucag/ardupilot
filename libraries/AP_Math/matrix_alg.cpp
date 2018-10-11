@@ -216,7 +216,7 @@ static bool mat_inverse(float* A, float* inv, uint8_t n)
     //check sanity of results
     for(uint8_t i = 0; i < n; i++) {
         for(uint8_t j = 0; j < n; j++) {
-            if(isnan(inv_pivoted[i*n+j]) || isinf(inv_pivoted[i*n+j])){
+            if(std::isnan(inv_pivoted[i*n+j]) || std::isinf(inv_pivoted[i*n+j])){
                 ret = false;
             }
         }
@@ -247,7 +247,7 @@ bool inverse3x3(float m[], float invOut[])
     float  det = m[0] * (m[4] * m[8] - m[7] * m[5]) -
     m[1] * (m[3] * m[8] - m[5] * m[6]) +
     m[2] * (m[3] * m[7] - m[4] * m[6]);
-    if (is_zero(det) || isinf(det)) {
+    if (is_zero(det) || std::isinf(det)) {
         return false;
     }
 
@@ -411,7 +411,7 @@ bool inverse4x4(float m[],float invOut[])
     }
 #endif
 
-    if (is_zero(det) || isinf(det)){
+    if (is_zero(det) || std::isinf(det)){
         return false;
     }
 

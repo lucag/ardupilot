@@ -751,7 +751,7 @@ void AP_Baro::update(void)
         if (sensors[i].healthy) {
             // update altitude calculation
             float ground_pressure = sensors[i].ground_pressure;
-            if (!is_positive(ground_pressure) || isnan(ground_pressure) || isinf(ground_pressure)) {
+            if (!is_positive(ground_pressure) || std::isnan(ground_pressure) || std::isinf(ground_pressure)) {
                 sensors[i].ground_pressure = sensors[i].pressure;
             }
             float altitude = sensors[i].altitude;
@@ -764,7 +764,7 @@ void AP_Baro::update(void)
                 altitude = (sensors[i].ground_pressure - corrected_pressure) / 9800.0f / _specific_gravity;
             }
             // sanity check altitude
-            sensors[i].alt_ok = !(isnan(altitude) || isinf(altitude));
+            sensors[i].alt_ok = !(std::isnan(altitude) || std::isinf(altitude));
             if (sensors[i].alt_ok) {
                 sensors[i].altitude = altitude + _alt_offset_active;
             }

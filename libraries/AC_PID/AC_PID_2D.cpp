@@ -102,7 +102,7 @@ void AC_PID_2D::filt_d_hz(float hz)
 void AC_PID_2D::set_input(const Vector2f &input)
 {
     // don't process inf or NaN
-    if (!isfinite(input.x) || !isfinite(input.y)) {
+    if (! std::isfinite(input.x) || ! std::isfinite(input.y)) {
         return;
     }
 
@@ -125,7 +125,7 @@ void AC_PID_2D::set_input(const Vector2f &input)
 void AC_PID_2D::set_input_filter_d(const Vector2f& input_delta)
 {
     // don't process inf or NaN
-    if (!isfinite(input_delta.x) && !isfinite(input_delta.y)) {
+    if (! std::isfinite(input_delta.x) && !std::isfinite(input_delta.y)) {
         return;
     }
 

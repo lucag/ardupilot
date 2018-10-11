@@ -66,7 +66,7 @@ static constexpr float FILTER_KOEF = 0.1f;
 bool AP_Baro_Backend::pressure_ok(float press)
 {
     
-    if (isinf(press) || isnan(press)) {
+    if (std::isinf(press) || std::isnan(press)) {
         return false;
     }
 

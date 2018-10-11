@@ -535,20 +535,20 @@ MAV_MISSION_RESULT AP_Mission::sanity_check_params(const mavlink_mission_item_in
             break;
     }
 
-    if (((nan_mask & (1 << 0)) && isnan(packet.param1)) ||
-        isinf(packet.param1)) {
+    if (((nan_mask & (1 << 0)) && std::isnan(packet.param1)) ||
+        std::isinf(packet.param1)) {
         return MAV_MISSION_INVALID_PARAM1;
     }
-    if (((nan_mask & (1 << 1)) && isnan(packet.param2)) ||
-        isinf(packet.param2)) {
+    if (((nan_mask & (1 << 1)) && std::isnan(packet.param2)) ||
+        std::isinf(packet.param2)) {
         return MAV_MISSION_INVALID_PARAM2;
     }
-    if (((nan_mask & (1 << 2)) && isnan(packet.param3)) ||
-        isinf(packet.param3)) {
+    if (((nan_mask & (1 << 2)) && std::isnan(packet.param3)) ||
+        std::isinf(packet.param3)) {
         return MAV_MISSION_INVALID_PARAM3;
     }
-    if (((nan_mask & (1 << 3)) && isnan(packet.param4)) ||
-        isinf(packet.param4)) {
+    if (((nan_mask & (1 << 3)) && std::isnan(packet.param4)) ||
+        std::isinf(packet.param4)) {
         return MAV_MISSION_INVALID_PARAM4;
     }
     return MAV_MISSION_ACCEPTED;
@@ -859,7 +859,7 @@ MAV_MISSION_RESULT AP_Mission::mavlink_int_to_mission_cmd(const mavlink_mission_
                 return MAV_MISSION_INVALID_PARAM6_Y;
             }
         }
-        if (isnan(packet.z) || fabsf(packet.z) >= LOCATION_ALT_MAX_M) {
+        if (std::isnan(packet.z) || fabsf(packet.z) >= LOCATION_ALT_MAX_M) {
             return MAV_MISSION_INVALID_PARAM7;
         }
 

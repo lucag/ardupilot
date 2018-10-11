@@ -65,13 +65,13 @@ Vector2<T> &Vector2<T>::operator -=(const Vector2<T> &v)
 template <typename T>
 bool Vector2<T>::is_nan(void) const
 {
-    return isnan(x) || isnan(y);
+    return std::isnan(x) || std::isnan(y);
 }
 
 template <typename T>
 bool Vector2<T>::is_inf(void) const
 {
-    return isinf(x) || isinf(y);
+    return std::isinf(x) || std::isinf(y);
 }
 
 template <typename T>
@@ -194,7 +194,7 @@ bool Vector2<T>::circle_segment_intersection(const Vector2<T>& seg_start, const 
     if (fabsf(a) < FLT_EPSILON) {
         return false;
     }
-    if (isnan(a) || isnan(b) || isnan(c) || isnan(delta)) {
+    if (std::isnan(a) || std::isnan(b) || std::isnan(c) || std::isnan(delta)) {
        return false;
     }
 
