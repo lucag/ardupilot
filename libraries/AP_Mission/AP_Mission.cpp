@@ -598,7 +598,6 @@ MAV_MISSION_RESULT AP_Mission::sanity_check_params(const mavlink_mission_item_in
 MAV_MISSION_RESULT AP_Mission::mavlink_int_to_mission_cmd(const mavlink_mission_item_int_t& packet, AP_Mission::Mission_Command& cmd)
 {
     bool copy_location = false;
-    bool copy_alt = false;
 
     // command's position in mission list and mavlink id
     cmd.index = packet.seq;
@@ -773,6 +772,10 @@ MAV_MISSION_RESULT AP_Mission::mavlink_int_to_mission_cmd(const mavlink_mission_
         copy_location = true;
         break;
 
+    case MAV_CMD_DO_GO_AROUND:                          // MAV ID: 191
+        copy_location = true;
+        break;
+
     case MAV_CMD_DO_SET_ROI:                            // MAV ID: 201
         copy_location = true;
         cmd.p1 = packet.param1;                         // 0 = no roi, 1 = next waypoint, 2 = waypoint number, 3 = fixed location, 4 = given target (not supported)
@@ -887,25 +890,21 @@ MAV_MISSION_RESULT AP_Mission::mavlink_int_to_mission_cmd(const mavlink_mission_
     }
 
     // copy location from mavlink to command
-    if (copy_location || copy_alt) {
+    if (copy_location) {
 
         // sanity check location
-        if (copy_location) {
-            if (!check_lat(packet.x)) {
-                return MAV_MISSION_INVALID_PARAM5_X;
-            }
-            if (!check_lng(packet.y)) {
-                return MAV_MISSION_INVALID_PARAM6_Y;
-            }
+        if (!check_lat(packet.x)) {
+            return MAV_MISSION_INVALID_PARAM5_X;
+        }
+        if (!check_lng(packet.y)) {
+            return MAV_MISSION_INVALID_PARAM6_Y;
         }
         if (std::isnan(packet.z) || fabsf(packet.z) >= LOCATION_ALT_MAX_M) {
             return MAV_MISSION_INVALID_PARAM7;
         }
 
-        if (copy_location) {
-            cmd.content.location.lat = packet.x;
-            cmd.content.location.lng = packet.y;
-        }
+        cmd.content.location.lat = packet.x;
+        cmd.content.location.lng = packet.y;
 
         cmd.content.location.alt = packet.z * 100.0f;       // convert packet's alt (m) to cmd alt (cm)
 
@@ -1058,7 +1057,6 @@ MAV_MISSION_RESULT AP_Mission::mavlink_cmd_long_to_mission_cmd(const mavlink_com
 bool AP_Mission::mission_cmd_to_mavlink_int(const AP_Mission::Mission_Command& cmd, mavlink_mission_item_int_t& packet)
 {
     bool copy_location = false;
-    bool copy_alt = false;
 
     // command's position in mission list and mavlink id
     packet.seq = cmd.index;
@@ -1229,6 +1227,10 @@ bool AP_Mission::mission_cmd_to_mavlink_int(const AP_Mission::Mission_Command& c
         copy_location = true;
         break;
 
+    case MAV_CMD_DO_GO_AROUND:                          // MAV ID: 191
+        copy_location = true;
+        break;
+
     case MAV_CMD_DO_SET_ROI:                            // MAV ID: 201
         copy_location = true;
         packet.param1 = cmd.p1;                         // 0 = no roi, 1 = next waypoint, 2 = waypoint number, 3 = fixed location, 4 = given target (not supported)
@@ -1346,8 +1348,7 @@ bool AP_Mission::mission_cmd_to_mavlink_int(const AP_Mission::Mission_Command& c
     if (copy_location) {
         packet.x = cmd.content.location.lat;
         packet.y = cmd.content.location.lng;
-    }
-    if (copy_location || copy_alt) {
+
         packet.z = cmd.content.location.alt / 100.0f;   // cmd alt in cm to m
         if (cmd.content.location.flags.relative_alt) {
             packet.frame = MAV_FRAME_GLOBAL_RELATIVE_ALT;
@@ -1724,7 +1725,7 @@ uint16_t AP_Mission::get_landing_sequence_start()
     float min_distance = -1;
 
     // Go through mission looking for nearest landing start command
-    for (uint16_t i = 0; i < num_commands(); i++) {
+    for (uint16_t i = 1; i < num_commands(); i++) {
         Mission_Command tmp;
         if (!read_cmd_from_storage(i, tmp)) {
             continue;
@@ -1761,6 +1762,45 @@ bool AP_Mission::jump_to_landing_sequence(void)
     }
 
     gcs().send_text(MAV_SEVERITY_WARNING, "Unable to start landing sequence");
+    return false;
+}
+
+// jumps the mission to the closest landing abort that is planned, returns false if unable to find a valid abort
+bool AP_Mission::jump_to_abort_landing_sequence(void)
+{
+    struct Location current_loc;
+
+    uint16_t abort_index = 0;
+    if (AP::ahrs().get_position(current_loc)) {
+        float min_distance = FLT_MAX;
+
+        for (uint16_t i = 1; i < num_commands(); i++) {
+            Mission_Command tmp;
+            if (!read_cmd_from_storage(i, tmp)) {
+                continue;
+            }
+            if (tmp.id == MAV_CMD_DO_GO_AROUND) {
+                float tmp_distance = get_distance(tmp.content.location, current_loc);
+                if (tmp_distance < min_distance) {
+                    min_distance = tmp_distance;
+                    abort_index = i;
+                }
+            }
+        }
+    }
+
+    if (abort_index != 0 && set_current_cmd(abort_index)) {
+
+        //if the mission has ended it has to be restarted
+        if (state() == AP_Mission::MISSION_STOPPED) {
+            resume();
+        }
+
+        gcs().send_text(MAV_SEVERITY_INFO, "Landing abort sequence start");
+        return true;
+    }
+
+    gcs().send_text(MAV_SEVERITY_WARNING, "Unable to start find a landing abort sequence");
     return false;
 }
 

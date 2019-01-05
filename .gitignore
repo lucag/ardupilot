@@ -100,3 +100,9 @@ config.mk
 /.vscode
 .bash_history
 .pydevproject
+Parameters.html
+Parameters.md
+Parameters.rst
+Parameters.wiki
+apm.pdef.xml
+parameters.edn

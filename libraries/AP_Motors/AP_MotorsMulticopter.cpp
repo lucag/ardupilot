@@ -137,7 +137,9 @@ const AP_Param::GroupInfo AP_MotorsMulticopter::var_info[] = {
     // @Param: HOVER_LEARN
     // @DisplayName: Hover Value Learning
     // @Description: Enable/Disable automatic learning of hover throttle
-    // @Values: 0:Disabled, 1:Learn, 2:LearnAndSave
+    // @Values{Copter}: 0:Disabled, 1:Learn, 2:LearnAndSave
+    // @Values{Sub}: 0:Disabled
+    // @Values{Plane}: 0:Disabled
     // @User: Advanced
     AP_GROUPINFO("HOVER_LEARN", 22, AP_MotorsMulticopter, _throttle_hover_learn, HOVER_LEARN_AND_SAVE),
 
@@ -168,7 +170,7 @@ const AP_Param::GroupInfo AP_MotorsMulticopter::var_info[] = {
 
     // @Param: BOOST_SCALE
     // @DisplayName: Motor boost scale
-    // @Description: This is a scaling factor for vehicles with a vertical booster motor used for extra lift. It is used with electric multicopters that have an internal combusion booster motor for longer endurance. The output to the BoostThrottle servo function is set to the current motor thottle times this scaling factor. A higher scaling factor will put more of the load on the booster motor. A value of 1 will set the BoostThrottle equal to the main throttle.
+    // @Description: Booster motor output scaling factor vs main throttle.  The output to the BoostThrottle servo will be the main throttle times this scaling factor. A higher scaling factor will put more of the load on the booster motor. A value of 1 will set the BoostThrottle equal to the main throttle.
     // @Range: 0 5
     // @Increment: 0.1
     // @User: Advanced
@@ -615,6 +617,9 @@ void AP_MotorsMulticopter::set_throttle_passthrough_for_esc_calibration(float th
                 rc_write(i, pwm_out);
             }
         }
+        // send pwm output to channels used by bicopter
+        SRV_Channels::set_output_pwm(SRV_Channel::k_throttleRight, pwm_out);
+        SRV_Channels::set_output_pwm(SRV_Channel::k_throttleLeft, pwm_out);
     }
 }
 
