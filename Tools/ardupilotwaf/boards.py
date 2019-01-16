@@ -2,7 +2,8 @@
 # encoding: utf-8
 
 from collections import OrderedDict
-import sys, os
+import sys
+import os
 
 import waflib
 from waflib import Utils
@@ -10,6 +11,7 @@ from waflib.Configure import conf
 
 _board_classes = {}
 _board = None
+
 
 class BoardMeta(type):
     def __init__(cls, name, bases, dct):
@@ -27,6 +29,7 @@ class BoardMeta(type):
         if board_name in _board_classes:
             raise Exception('board named %s already exists' % board_name)
         _board_classes[board_name] = cls
+
 
 class Board:
     abstract = True
@@ -95,28 +98,28 @@ class Board:
 
         if cfg.options.enable_scripting:
             env.DEFINES.update(
-                ENABLE_SCRIPTING = 1,
-                ENABLE_HEAP = 1,
-                LUA_32BITS = 1,
-                )
+                ENABLE_SCRIPTING=1,
+                ENABLE_HEAP=1,
+                LUA_32BITS=1,
+            )
 
             env.ROMFS_FILES += [
                 ('sandbox.lua', 'libraries/AP_Scripting/scripts/sandbox.lua'),
-                ]
+            ]
 
             env.AP_LIBRARIES += [
                 'AP_Scripting',
                 'AP_Scripting/lua/src',
-                ]
+            ]
 
             env.CXXFLAGS += [
                 '-DHAL_HAVE_AP_ROMFS_EMBEDDED_H'
-                ]
+            ]
 
         if cfg.options.scripting_checks:
             env.DEFINES.update(
-                AP_SCRIPTING_CHECKS = 1,
-                )
+                AP_SCRIPTING_CHECKS=1,
+            )
 
         if 'clang' in cfg.env.COMPILER_CC:
             env.CFLAGS += [
@@ -204,16 +207,16 @@ class Board:
             env.AP_LIBRARIES += [
                 'AP_UAVCAN',
                 'modules/uavcan/libuavcan/src/**/*.cpp'
-                ]
+            ]
 
             env.CXXFLAGS += [
                 '-Wno-error=cast-align',
             ]
 
             env.DEFINES.update(
-                UAVCAN_CPP_VERSION = 'UAVCAN_CPP03',
-                UAVCAN_NO_ASSERTIONS = 1,
-                UAVCAN_NULLPTR = 'nullptr'
+                UAVCAN_CPP_VERSION='UAVCAN_CPP03',
+                UAVCAN_NO_ASSERTIONS=1,
+                UAVCAN_NULLPTR='nullptr'
             )
 
             env.INCLUDES += [
@@ -222,7 +225,6 @@ class Board:
 
         # We always want to use PRI format macros
         cfg.define('__STDC_FORMAT_MACROS', 1)
-
 
     def pre_build(self, bld):
         '''pre-build hook that gets called before dynamic sources'''
@@ -243,16 +245,18 @@ class Board:
         if ctx.env.USE_NUTTX_IOFW:
             # use fmuv2_IO_NuttX.bin instead of fmuv2_IO.bin
             for i in range(len(ctx.env.ROMFS_FILES)):
-                (name,filename) = ctx.env.ROMFS_FILES[i]
+                (name, filename) = ctx.env.ROMFS_FILES[i]
                 if name == 'io_firmware.bin':
                     filename = 'Tools/IO_Firmware/fmuv2_IO_NuttX.bin'
                     print("Using IO firmware %s" % filename)
-                    ctx.env.ROMFS_FILES[i] = (name,filename);
+                    ctx.env.ROMFS_FILES[i] = (name, filename)
         header = ctx.bldnode.make_node('ap_romfs_embedded.h').abspath()
         if not embed.create_embedded_h(header, ctx.env.ROMFS_FILES):
             ctx.fatal("Failed to created ap_romfs_embedded.h")
 
+
 Board = BoardMeta('Board', Board.__bases__, dict(Board.__dict__))
+
 
 def add_dynamic_boards():
     '''add boards based on existance of hwdef.dat in subdirectories for ChibiOS'''
@@ -264,14 +268,17 @@ def add_dynamic_boards():
         if os.path.exists(hwdef):
             newclass = type(d, (chibios,), {'name': d})
 
+
 def get_boards_names():
     add_dynamic_boards()
 
     return sorted(list(_board_classes.keys()), key=str.lower)
 
+
 def get_removed_boards():
     '''list of boards which have been removed'''
     return sorted(['px4-v1', 'px4-v2', 'px4-v3', 'px4-v4', 'px4-v4pro'])
+
 
 @conf
 def get_board(ctx):
@@ -298,14 +305,15 @@ Please use a replacement build as follows:
 # identify opportunities to simplify common flags. In the future might
 # be worthy to keep board definitions in files of their own.
 
+
 class sitl(Board):
     def configure_env(self, cfg, env):
         super(sitl, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD = 'HAL_BOARD_SITL',
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_NONE',
-            AP_SCRIPTING_CHECKS = 1, # SITL should always do runtime scripting checks
+            CONFIG_HAL_BOARD='HAL_BOARD_SITL',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_NONE',
+            AP_SCRIPTING_CHECKS=1,  # SITL should always do runtime scripting checks
         )
 
         env.CXXFLAGS += [
@@ -323,7 +331,7 @@ class sitl(Board):
 
         cfg.check_librt(env)
 
-        env.LINKFLAGS += ['-pthread',]
+        env.LINKFLAGS += ['-pthread', ]
         env.AP_LIBRARIES += [
             'AP_HAL_SITL',
             'SITL',
@@ -332,11 +340,11 @@ class sitl(Board):
         if cfg.options.enable_sfml:
             if not cfg.check_SFML(env):
                 cfg.fatal("Failed to find SFML libraries")
-            env.CXXFLAGS += ['-DWITH_SITL_OSD','-DOSD_ENABLED=ENABLED','-DHAL_HAVE_AP_ROMFS_EMBEDDED_H']
+            env.CXXFLAGS += ['-DWITH_SITL_OSD', '-DOSD_ENABLED=ENABLED', '-DHAL_HAVE_AP_ROMFS_EMBEDDED_H']
             import fnmatch
             for f in os.listdir('libraries/AP_OSD/fonts'):
                 if fnmatch.fnmatch(f, "font*bin"):
-                    env.ROMFS_FILES += [(f,'libraries/AP_OSD/fonts/'+f)]
+                    env.ROMFS_FILES += [(f, 'libraries/AP_OSD/fonts/' + f)]
 
         if cfg.env.DEST_OS == 'cygwin':
             env.LIB += [
@@ -349,8 +357,9 @@ class sitl(Board):
         if 'clang++' in cfg.env.COMPILER_CXX:
             print("Disabling SLP for clang++")
             env.CXXFLAGS += [
-                '-fno-slp-vectorize' # compiler bug when trying to use SLP
+                '-fno-slp-vectorize'  # compiler bug when trying to use SLP
             ]
+
 
 class chibios(Board):
     abstract = True
@@ -363,9 +372,9 @@ class chibios(Board):
         env.BOARD = self.name
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD = 'HAL_BOARD_CHIBIOS',
-            HAVE_OCLOEXEC = 0,
-            HAVE_STD_NULLPTR_T = 0,
+            CONFIG_HAL_BOARD='HAL_BOARD_CHIBIOS',
+            HAVE_OCLOEXEC=0,
+            HAVE_STD_NULLPTR_T=0,
         )
 
         env.AP_LIBRARIES += [
@@ -452,7 +461,8 @@ class chibios(Board):
             '-L%s' % env.BUILDROOT,
             '-L%s' % cfg.srcnode.make_node('modules/ChibiOS/os/common/startup/ARMCMx/compilers/GCC/ld/').abspath(),
             '-L%s' % cfg.srcnode.make_node('libraries/AP_HAL_ChibiOS/hwdef/common/').abspath(),
-            '-Wl,--gc-sections,--no-warn-mismatch,--library-path=/ld,--script=ldscript.ld,--defsym=__process_stack_size__=%s,--defsym=__main_stack_size__=%s' % (cfg.env.PROCESS_STACK, cfg.env.MAIN_STACK)
+            '-Wl,--gc-sections,--no-warn-mismatch,--library-path=/ld,--script=ldscript.ld,--defsym=__process_stack_size__=%s,--defsym=__main_stack_size__=%s' % (
+                cfg.env.PROCESS_STACK, cfg.env.MAIN_STACK)
         ]
 
         if cfg.env.DEBUG:
@@ -467,8 +477,8 @@ class chibios(Board):
 
         if cfg.env.ENABLE_ASSERTS:
             cfg.msg("Enabling ChibiOS asserts", "yes")
-            env.CFLAGS += [ '-DHAL_CHIBIOS_ENABLE_ASSERTS' ]
-            env.CXXFLAGS += [ '-DHAL_CHIBIOS_ENABLE_ASSERTS' ]
+            env.CFLAGS += ['-DHAL_CHIBIOS_ENABLE_ASSERTS']
+            env.CXXFLAGS += ['-DHAL_CHIBIOS_ENABLE_ASSERTS']
         else:
             cfg.msg("Enabling ChibiOS asserts", "no")
 
@@ -500,13 +510,14 @@ class chibios(Board):
         if fun:
             fun(bld)
 
+
 class linux(Board):
     def configure_env(self, cfg, env):
         super(linux, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD = 'HAL_BOARD_LINUX',
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_NONE',
+            CONFIG_HAL_BOARD='HAL_BOARD_LINUX',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_NONE',
         )
 
         if not cfg.env.DEBUG:
@@ -523,7 +534,7 @@ class linux(Board):
         cfg.check_libdl(env)
         cfg.check_libiio(env)
 
-        env.LINKFLAGS += ['-pthread',]
+        env.LINKFLAGS += ['-pthread', ]
         env.AP_LIBRARIES += [
             'AP_HAL_Linux',
         ]
@@ -541,6 +552,7 @@ class linux(Board):
             # Avoid infinite recursion
             bld.options.upload = False
 
+
 class erleboard(linux):
     toolchain = 'arm-linux-gnueabihf'
 
@@ -548,8 +560,9 @@ class erleboard(linux):
         super(erleboard, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_ERLEBOARD',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_ERLEBOARD',
         )
+
 
 class navio(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -558,8 +571,9 @@ class navio(linux):
         super(navio, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_NAVIO',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_NAVIO',
         )
+
 
 class navio2(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -568,8 +582,9 @@ class navio2(linux):
         super(navio2, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_NAVIO2',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_NAVIO2',
         )
+
 
 class edge(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -581,8 +596,9 @@ class edge(linux):
         super(edge, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_EDGE',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_EDGE',
         )
+
 
 class zynq(linux):
     toolchain = 'arm-xilinx-linux-gnueabi'
@@ -591,8 +607,9 @@ class zynq(linux):
         super(zynq, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_ZYNQ',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_ZYNQ',
         )
+
 
 class ocpoc_zynq(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -601,8 +618,9 @@ class ocpoc_zynq(linux):
         super(ocpoc_zynq, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_OCPOC_ZYNQ',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_OCPOC_ZYNQ',
         )
+
 
 class bbbmini(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -611,8 +629,9 @@ class bbbmini(linux):
         super(bbbmini, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_BBBMINI',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_BBBMINI',
         )
+
 
 class blue(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -621,8 +640,9 @@ class blue(linux):
         super(blue, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_BLUE',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_BLUE',
         )
+
 
 class pocket(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -631,8 +651,9 @@ class pocket(linux):
         super(pocket, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_POCKET',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_POCKET',
         )
+
 
 class pxf(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -641,8 +662,9 @@ class pxf(linux):
         super(pxf, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_PXF',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_PXF',
         )
+
 
 class bebop(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -651,8 +673,9 @@ class bebop(linux):
         super(bebop, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_BEBOP',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_BEBOP',
         )
+
 
 class disco(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -661,8 +684,9 @@ class disco(linux):
         super(disco, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_DISCO',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_DISCO',
         )
+
 
 class erlebrain2(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -671,8 +695,9 @@ class erlebrain2(linux):
         super(erlebrain2, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_ERLEBRAIN2',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_ERLEBRAIN2',
         )
+
 
 class bhat(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -681,8 +706,9 @@ class bhat(linux):
         super(bhat, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_BH',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_BH',
         )
+
 
 class dark(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -691,8 +717,9 @@ class dark(linux):
         super(dark, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_DARK',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_DARK',
         )
+
 
 class pxfmini(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -701,8 +728,9 @@ class pxfmini(linux):
         super(pxfmini, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_PXFMINI',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_PXFMINI',
         )
+
 
 class aero(linux):
     def __init__(self):
@@ -712,8 +740,9 @@ class aero(linux):
         super(aero, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_AERO',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_AERO',
         )
+
 
 class rst_zynq(linux):
     toolchain = 'arm-linux-gnueabihf'
@@ -722,6 +751,5 @@ class rst_zynq(linux):
         super(rst_zynq, self).configure_env(cfg, env)
 
         env.DEFINES.update(
-            CONFIG_HAL_BOARD_SUBTYPE = 'HAL_BOARD_SUBTYPE_LINUX_RST_ZYNQ',
+            CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_RST_ZYNQ',
         )
-

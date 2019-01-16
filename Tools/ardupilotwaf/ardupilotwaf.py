@@ -6,7 +6,8 @@ from waflib import Build, ConfigSet, Configure, Context, Errors, Logs, Options, 
 from waflib.Configure import conf
 from waflib.Scripting import run_command
 from waflib.TaskGen import before_method, feature
-import os.path, os
+import os.path
+import os
 from collections import OrderedDict
 
 import ap_persistent
@@ -81,6 +82,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_RobotisServo',
 ]
 
+
 def get_legacy_defines(sketch_name):
     return [
         'APM_BUILD_DIRECTORY=APM_BUILD_' + sketch_name,
@@ -88,9 +90,10 @@ def get_legacy_defines(sketch_name):
         'SKETCHNAME="' + sketch_name + '"',
     ]
 
+
 IGNORED_AP_LIBRARIES = [
     'doc',
-    'AP_Scripting', # this gets explicitly included when it is needed and should otherwise never be globbed in
+    'AP_Scripting',  # this gets explicitly included when it is needed and should otherwise never be globbed in
 ]
 
 
@@ -98,6 +101,7 @@ def ap_autoconfigure(execute_method):
     """
     Decorator that enables context commands to run *configure* as needed.
     """
+
     def execute(self):
         """
         Wraps :py:func:`waflib.Context.Context.execute` on the context class
@@ -118,7 +122,8 @@ def ap_autoconfigure(execute_method):
             p = os.path.join(Context.out_dir, Build.CACHE_DIR, self.variant + Build.CACHE_SUFFIX)
             env.load(p)
         except EnvironmentError:
-            raise Errors.WafError('The project is not configured for board {0}: run "waf configure --board {0} [...]" first!'.format(self.variant))
+            raise Errors.WafError(
+                'The project is not configured for board {0}: run "waf configure --board {0} [...]" first!'.format(self.variant))
 
         lock_env = ConfigSet.ConfigSet()
 
@@ -162,6 +167,7 @@ def ap_autoconfigure(execute_method):
 
     return execute
 
+
 def ap_configure_post_recurse():
     post_recurse_orig = Configure.ConfigurationContext.post_recurse
 
@@ -172,6 +178,7 @@ def ap_configure_post_recurse():
         self.all_envs[self.variant].CONFIGURE_HASH = self.hash
 
     return post_recurse
+
 
 @conf
 def ap_get_all_libraries(bld):
@@ -191,6 +198,7 @@ def ap_get_all_libraries(bld):
     libraries.extend(['AP_HAL', 'AP_HAL_Empty'])
     return libraries
 
+
 @conf
 def ap_common_vehicle_libraries(bld):
     libraries = COMMON_VEHICLE_DEPENDENT_LIBRARIES
@@ -202,7 +210,9 @@ def ap_common_vehicle_libraries(bld):
 
     return libraries
 
+
 _grouped_programs = {}
+
 
 @conf
 def ap_program(bld,
@@ -241,7 +251,6 @@ def ap_program(bld,
         if bld.env.STATIC_LINKING:
             kw['features'].append('static_linking')
 
-
     tg = tg_constructor(
         target='#%s' % name,
         name=name,
@@ -256,14 +265,17 @@ def ap_program(bld,
     for group in program_groups:
         _grouped_programs.setdefault(group, []).append(tg)
 
+
 @conf
 def ap_example(bld, **kw):
     kw['program_groups'] = 'examples'
     ap_program(bld, use_legacy_defines=False, **kw)
 
+
 def unique_list(items):
     '''remove duplicate elements from a list while maintaining ordering'''
     return list(OrderedDict.fromkeys(items))
+
 
 @conf
 def ap_stlib(bld, **kw):
@@ -284,7 +296,10 @@ def ap_stlib(bld, **kw):
 
     bld.stlib(**kw)
 
+
 _created_program_dirs = set()
+
+
 @feature('cxxstlib', 'cxxprogram')
 @before_method('process_rule')
 def ap_create_program_dir(self):
@@ -295,12 +310,14 @@ def ap_create_program_dir(self):
     self.bld.bldnode.make_node(self.program_dir).mkdir()
     _created_program_dirs.add(self.program_dir)
 
+
 @feature('cxxstlib')
 @before_method('process_rule')
 def ap_stlib_target(self):
     if self.target.startswith('#'):
         self.target = self.target[1:]
     self.target = '#%s' % os.path.join('lib', self.target)
+
 
 @conf
 def ap_find_tests(bld, use=[]):
@@ -329,21 +346,25 @@ def ap_find_tests(bld, use=[]):
             cxxflags=['-Wno-undef'],
         )
 
+
 _versions = []
+
 
 @conf
 def ap_version_append_str(ctx, k, v):
     ctx.env['AP_VERSION_ITEMS'] += [(k, '"{}"'.format(os.environ.get(k, v)))]
 
+
 @conf
 def ap_version_append_int(ctx, k, v):
-    ctx.env['AP_VERSION_ITEMS'] += [(k,v)]
+    ctx.env['AP_VERSION_ITEMS'] += [(k, v)]
+
 
 @conf
 def write_version_header(ctx, tgt):
     with open(tgt, 'w') as f:
         print(
-'''// auto-generated header, do not edit
+            '''// auto-generated header, do not edit
 
 #pragma once
 
@@ -354,6 +375,7 @@ def write_version_header(ctx, tgt):
 
         for k, v in ctx.env['AP_VERSION_ITEMS']:
             print('#define {} {}'.format(k, v), file=f)
+
 
 @conf
 def ap_find_benchmarks(bld, use=[]):
@@ -373,6 +395,7 @@ def ap_find_benchmarks(bld, use=[]):
             program_groups='benchmarks',
             use_legacy_defines=False,
         )
+
 
 def test_summary(bld):
     from io import BytesIO
@@ -418,7 +441,9 @@ def test_summary(bld):
 
     bld.fatal('check: some tests failed')
 
+
 _build_commands = {}
+
 
 def _process_build_command(bld):
     if bld.cmd not in _build_commands:
@@ -436,10 +461,11 @@ def _process_build_command(bld):
     program_group_list = Utils.to_list(params['program_group_list'])
     bld.options.program_group.extend(program_group_list)
 
+
 def build_command(name,
-                   targets=None,
-                   program_group_list=[],
-                   doc='build shortcut'):
+                  targets=None,
+                  program_group_list=[],
+                  doc='build shortcut'):
     _build_commands[name] = dict(
         targets=targets,
         program_group_list=program_group_list,
@@ -448,6 +474,7 @@ def build_command(name,
     class context_class(Build.BuildContext):
         cmd = name
     context_class.__doc__ = doc
+
 
 def _select_programs_from_group(bld):
     groups = bld.options.program_group
@@ -473,6 +500,7 @@ def _select_programs_from_group(bld):
         for tg in _grouped_programs[group][1:]:
             bld.targets += ',' + tg.name
 
+
 def options(opt):
     opt.ap_groups = {
         'configure': opt.add_option_group('Ardupilot configure options'),
@@ -485,16 +513,16 @@ def options(opt):
     g = opt.ap_groups['build']
 
     g.add_option('--program-group',
-        action='append',
-        default=[],
-        help='''Select all programs that go in <PROGRAM_GROUP>/ for the build.
+                 action='append',
+                 default=[],
+                 help='''Select all programs that go in <PROGRAM_GROUP>/ for the build.
 Example: `waf --program-group examples` builds all examples. The
 special group "all" selects all programs.
 ''')
 
     g.add_option('--upload',
-        action='store_true',
-        help='''Upload applicable targets to a connected device. Not all
+                 action='store_true',
+                 help='''Upload applicable targets to a connected device. Not all
 platforms may support this. Example: `waf copter --upload` means "build
 arducopter and upload it to my board".
 ''')
@@ -502,20 +530,21 @@ arducopter and upload it to my board".
     g = opt.ap_groups['check']
 
     g.add_option('--check-verbose',
-        action='store_true',
-        help='Output all test programs.')
+                 action='store_true',
+                 help='Output all test programs.')
 
     g = opt.ap_groups['clean']
 
     g.add_option('--clean-all-sigs',
-        action='store_true',
-        help='''Clean signatures for all tasks. By default, tasks that scan for
+                 action='store_true',
+                 help='''Clean signatures for all tasks. By default, tasks that scan for
 implicit dependencies (like the compilation tasks) keep the dependency
 information across clean commands, so that that information is changed
 only when really necessary. Also, some tasks that don't really produce
 files persist their signature. This option avoids that behavior when
 cleaning the build.
 ''')
+
 
 def build(bld):
     bld.add_pre_fun(_process_build_command)

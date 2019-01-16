@@ -133,6 +133,7 @@ import os
 import re
 import sys
 
+
 class cmake_configure_task(Task.Task):
     vars = ['CMAKE_BLD_DIR']
     run_str = '${CMAKE} ${CMAKE_FLAGS} ${CMAKE_SRC_DIR} ${CMAKE_VARS} ${CMAKE_GENERATOR_OPTION}'
@@ -145,6 +146,7 @@ class cmake_configure_task(Task.Task):
     def uid(self):
         if not hasattr(self, 'uid_'):
             m = Utils.md5()
+
             def u(s):
                 m.update(s.encode('utf-8'))
             u(self.__class__.__name__)
@@ -162,14 +164,20 @@ class cmake_configure_task(Task.Task):
     def keyword(self):
         return 'CMake Configure'
 
+
 # Clean cmake configuration
 cmake_configure_task._original_run = cmake_configure_task.run
+
+
 def _cmake_configure_task_run(self):
     cmakecache_path = self.outputs[0].abspath()
     if os.path.exists(cmakecache_path):
         os.remove(cmakecache_path)
     self._original_run()
+
+
 cmake_configure_task.run = _cmake_configure_task_run
+
 
 class cmake_build_task(Task.Task):
     run_str = '${CMAKE} --build ${CMAKE_BLD_DIR} --target ${CMAKE_TARGET}'
@@ -185,6 +193,7 @@ class cmake_build_task(Task.Task):
     def uid(self):
         if not hasattr(self, 'uid_'):
             m = Utils.md5()
+
             def u(s):
                 m.update(s.encode('utf-8'))
             u(self.__class__.__name__)
@@ -200,7 +209,10 @@ class cmake_build_task(Task.Task):
     def keyword(self):
         return 'CMake Build'
 
+
 cmake_build_task.original_post_run = cmake_build_task.post_run
+
+
 def _cmake_build_task_post_run(self):
     self.output_patterns = Utils.to_list(self.output_patterns)
     if not self.output_patterns:
@@ -209,13 +221,17 @@ def _cmake_build_task_post_run(self):
     for node in bldnode.ant_glob(self.output_patterns, remove=False):
         self.set_outputs(node)
     return self.original_post_run()
+
+
 cmake_build_task.post_run = _cmake_build_task_post_run
+
 
 class CMakeConfig(object):
     '''
     CMake configuration. This object shouldn't be instantiated directly. Use
     bld.cmake().
     '''
+
     def __init__(self, bld, name, srcnode, bldnode, cmake_vars, cmake_flags):
         self.bld = bld
         self.name = name
@@ -235,6 +251,7 @@ class CMakeConfig(object):
 
     def config_sig(self):
         m = Utils.md5()
+
         def u(s):
             m.update(s.encode('utf-8'))
         u(self.srcnode.abspath())
@@ -279,11 +296,15 @@ class CMakeConfig(object):
     def build(self, cmake_target, **kw):
         return self.bld.cmake_build(self.name, cmake_target, **kw)
 
+
 _cmake_instances = {}
+
+
 def get_cmake(name):
     if name not in _cmake_instances:
         raise Exception('cmake: configuration named "%s" not found' % name)
     return _cmake_instances[name]
+
 
 @conf
 def cmake(bld, name, cmake_src=None, cmake_bld=None, cmake_vars={}, cmake_flags=''):
@@ -312,6 +333,7 @@ def cmake(bld, name, cmake_src=None, cmake_bld=None, cmake_vars={}, cmake_flags=
     _cmake_instances[name] = c
     return c
 
+
 @feature('cmake_build')
 def process_cmake_build(self):
     if not hasattr(self, 'cmake_target'):
@@ -333,6 +355,7 @@ def process_cmake_build(self):
 
     tsk.output_patterns = getattr(self, 'cmake_output_patterns', [])
 
+
 @conf
 def cmake_build(bld, cmake_config, cmake_target, **kw):
     kw['cmake_config'] = cmake_config
@@ -343,6 +366,7 @@ def cmake_build(bld, cmake_config, cmake_target, **kw):
         kw['name'] = '%s_%s' % (cmake_config, cmake_target)
 
     return bld(**kw)
+
 
 @taskgen_method
 def create_cmake_build_task(self, cmake_config, cmake_target):
@@ -364,6 +388,7 @@ def create_cmake_build_task(self, cmake_config, cmake_target):
 
     return tsk
 
+
 def _check_min_version(cfg):
     cfg.start_msg('Checking cmake version')
     cmd = cfg.env.get_flat('CMAKE'), '--version'
@@ -382,6 +407,7 @@ def _check_min_version(cfg):
             cfg.fatal('cmake must be at least at version %s' % minver_str)
         cfg.end_msg(m.group(0))
 
+
 generators = dict(
     default=[
         (['ninja', 'ninja-build'], 'Ninja'),
@@ -392,6 +418,7 @@ generators = dict(
         (['nmake'], 'NMake Makefiles'),
     ],
 )
+
 
 def configure(cfg):
     cfg.find_program('cmake')

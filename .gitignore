@@ -106,3 +106,7 @@ Parameters.rst
 Parameters.wiki
 apm.pdef.xml
 parameters.edn
+
+.pydevproject
+.idea/
+*.iml

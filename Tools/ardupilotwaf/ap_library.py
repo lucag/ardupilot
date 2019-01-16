@@ -38,27 +38,37 @@ import ardupilotwaf as ap
 
 UTILITY_SOURCE_EXTS = ['utility/' + glob for glob in ap.SOURCE_EXTS]
 
+
 def _common_tgen_name(library):
     return 'objs/%s' % library
+
 
 def _vehicle_tgen_name(library, vehicle):
     return 'objs/%s/%s' % (library, vehicle)
 
+
 _vehicle_indexes = {}
+
+
 def _vehicle_index(vehicle):
     """ Used for the objects taskgens idx parameter """
     if vehicle not in _vehicle_indexes:
         _vehicle_indexes[vehicle] = len(_vehicle_indexes) + 1
     return _vehicle_indexes[vehicle]
 
+
 _vehicle_macros = ('SKETCHNAME', 'SKETCH', 'APM_BUILD_DIRECTORY',
                    'APM_BUILD_TYPE')
 _macros_re = re.compile(r'\b(%s)\b' % '|'.join(_vehicle_macros))
 
+
 def _remove_comments(s):
     return c_preproc.re_cpp.sub(c_preproc.repl, s)
 
+
 _depends_on_vehicle_cache = {}
+
+
 def _depends_on_vehicle(bld, source_node):
     path = source_node.srcpath()
 
@@ -67,6 +77,7 @@ def _depends_on_vehicle(bld, source_node):
         _depends_on_vehicle_cache[path] = _macros_re.search(s) is not None
 
     return _depends_on_vehicle_cache[path]
+
 
 @conf
 def ap_library(bld, library, vehicle):
@@ -122,6 +133,7 @@ def ap_library(bld, library, vehicle):
         )
         bld.objects(**kw)
 
+
 @before_method('process_use')
 @feature('cxxstlib')
 def process_ap_libraries(self):
@@ -134,9 +146,10 @@ def process_ap_libraries(self):
         if vehicle:
             self.use.append(_vehicle_tgen_name(l, vehicle))
 
+
 class ap_library_check_headers(Task.Task):
     color = 'PINK'
-    before  = 'cxx c'
+    before = 'cxx c'
     dispatched_headers = set()
     whitelist = (
         'libraries/AP_Vehicle/AP_Vehicle_Type.h',
@@ -193,6 +206,7 @@ class ap_library_check_headers(Task.Task):
     def keyword(self):
         return 'Checking included headers'
 
+
 @feature('ap_library_object')
 @after_method('process_source')
 def ap_library_register_for_check(self):
@@ -205,6 +219,7 @@ def ap_library_register_for_check(self):
     for t in self.compiled_tasks:
         tsk = self.create_task('ap_library_check_headers')
         tsk.compiled_task = t
+
 
 def configure(cfg):
     cfg.env.AP_LIBRARIES_OBJECTS_KW = dict()

@@ -15,8 +15,9 @@
 '''calibration simulation command handling'''
 
 from __future__ import division, print_function
-import math
 from pymavlink import quaternion
+
+import math
 import random
 import time
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 """
 Framework to start a simulated vehicle and connect it to MAVProxy.
@@ -712,9 +712,10 @@ parser.add_option("-v", "--vehicle",
                   default=None,
                   help="vehicle type (%s)" % vehicle_options_string,
                   choices=list(vinfo.options.keys()))
-parser.add_option("-f", "--frame", type='string', default=None, help="""set vehicle frame type
-
-%s""" % (generate_frame_help()))
+parser.add_option("-f", "--frame",
+                  type='string',
+                  default=None,
+                  help="""set vehicle frame type %s""" % (generate_frame_help()))
 parser.add_option("-C", "--sim_vehicle_sh_compatible",
                   action='store_true',
                   default=False,
