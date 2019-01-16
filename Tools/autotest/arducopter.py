@@ -2695,6 +2695,10 @@ class AutoTestCopter(AutoTest):
         ])
         return ret
 
+    def disabled_tests(self):
+        return {
+            "Parachute": "See https://github.com/ArduPilot/ardupilot/issues/4702",
+        }
 
 class AutoTestHeli(AutoTestCopter):
 
@@ -2712,6 +2716,7 @@ class AutoTestHeli(AutoTestCopter):
         super(AutoTestCopter, self).set_rc_default()
         self.progress("Lowering rotor speed")
         self.set_rc(8, 1000)
+        self.set_rc(3, 1000) # collective
 
     def tests(self):
         '''return list of all tests'''
