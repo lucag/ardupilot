@@ -1003,10 +1003,10 @@ if cmd_opts.vehicle not in vinfo.options:
 # try to validate vehicle
 if cmd_opts.vehicle not in vinfo.options:
     progress('''
-** Is (%s) really your vehicle type?
-Perhaps you could try -v %s
-You could also try changing directory to e.g. the ArduCopter subdirectory
-''' % (cmd_opts.vehicle, vehicle_options_string))
+        ** Is (%s) really your vehicle type?
+        Perhaps you could try -v %s
+        You could also try changing directory to e.g. the ArduCopter subdirectory
+        ''' % (cmd_opts.vehicle, vehicle_options_string))
     sys.exit(1)
 
 # determine frame options (e.g. build type might be "sitl")

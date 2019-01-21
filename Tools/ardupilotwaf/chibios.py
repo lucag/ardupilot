@@ -5,21 +5,22 @@
 Waf tool for ChibiOS build
 """
 
-from waflib import Errors, Logs, Task, Utils
+import os
+import pickle
+import re
+import sys
+
+from waflib import Task, Utils
 from waflib.TaskGen import after_method, before_method, feature
 
-import os
-import shutil
-import sys
-import re
-import pickle
-
 _dynamic_env_data = {}
+
+
 def _load_dynamic_env_data(bld):
     bldnode = bld.bldnode.make_node('modules/ChibiOS')
     tmp_str = bldnode.find_node('include_dirs').read()
-    tmp_str = tmp_str.replace(';\n','')
-    tmp_str = tmp_str.replace('-I','')  #remove existing -I flags
+    tmp_str = tmp_str.replace(';\n', '')
+    tmp_str = tmp_str.replace('-I', '')  # remove existing -I flags
     # split, coping with separator
     idirs = re.split('; ', tmp_str)
 
@@ -33,6 +34,7 @@ def _load_dynamic_env_data(bld):
         if not d in idirs2:
             idirs2.append(d)
     _dynamic_env_data['include_dirs'] = idirs2
+
 
 @feature('ch_ap_library', 'ch_ap_program')
 @before_method('process_source')
@@ -49,8 +51,9 @@ def ch_dynamic_env(self):
 
 
 class upload_fw(Task.Task):
-    color='BLUE'
+    color = 'BLUE'
     always_run = True
+
     def run(self):
         upload_tools = self.env.get_flat('UPLOAD_TOOLS')
         src = self.inputs[0]
@@ -63,9 +66,11 @@ class upload_fw(Task.Task):
     def keyword(self):
         return "Uploading"
 
+
 class set_default_parameters(Task.Task):
-    color='CYAN'
+    color = 'CYAN'
     always_run = True
+
     def keyword(self):
         return "apj_tool"
     def run(self):
@@ -83,8 +88,8 @@ class set_default_parameters(Task.Task):
 
 
 class generate_bin(Task.Task):
-    color='CYAN'
-    run_str="${OBJCOPY} -O binary ${SRC} ${TGT}"
+    color = 'CYAN'
+    run_str = "${OBJCOPY} -O binary ${SRC} ${TGT}"
     always_run = True
     def keyword(self):
         return "Generating"
@@ -119,8 +124,8 @@ class generate_apj(Task.Task):
 
 class build_abin(Task.Task):
     '''build an abin file for skyviper firmware upload via web UI'''
-    color='CYAN'
-    run_str='${TOOLS_SCRIPTS}/make_abin.sh ${SRC}.bin ${SRC}.abin'
+    color = 'CYAN'
+    run_str = '${TOOLS_SCRIPTS}/make_abin.sh ${SRC}.bin ${SRC}.abin'
     always_run = True
     def keyword(self):
         return "Generating"
@@ -129,8 +134,8 @@ class build_abin(Task.Task):
 
 class build_intel_hex(Task.Task):
     '''build an intel hex file for upload with DFU'''
-    color='CYAN'
-    run_str='${TOOLS_SCRIPTS}/make_intel_hex.py ${SRC} ${FLASH_RESERVE_START_KB}'
+    color = 'CYAN'
+    run_str = '${TOOLS_SCRIPTS}/make_intel_hex.py ${SRC} ${FLASH_RESERVE_START_KB}'
     always_run = True
     def keyword(self):
         return "Generating"
@@ -169,7 +174,7 @@ def chibios_firmware(self):
                                                src=link_output)
         default_params_task.set_run_after(self.link_task)
         generate_bin_task.set_run_after(default_params_task)
-    
+
     if self.bld.options.upload:
         _upload_task = self.create_task('upload_fw', src=apj_target)
         _upload_task.set_run_after(generate_apj_task)
@@ -182,7 +187,7 @@ def setup_can_build(cfg):
         'AP_UAVCAN',
         'modules/uavcan/libuavcan/src/**/*.cpp',
         'modules/uavcan/libuavcan_drivers/stm32/driver/src/*.cpp'
-        ]
+    ]
 
     env.CFLAGS += ['-DUAVCAN_STM32_CHIBIOS=1',
                    '-DUAVCAN_STM32_NUM_IFACES=2']
@@ -315,7 +320,6 @@ def pre_build(bld):
         bld.get_board().with_uavcan = True
 
 def build(bld):
-
     bld(
         # build hwdef.h from hwdef.dat. This is needed after a waf clean
         source=bld.path.ant_glob(bld.env.HWDEF),
@@ -325,7 +329,7 @@ def build(bld):
         target=[bld.bldnode.find_or_declare('hwdef.h'),
                 bld.bldnode.find_or_declare('ldscript.ld')]
     )
-    
+
     bld(
         # create the file modules/ChibiOS/include_dirs
         rule="touch Makefile && BUILDDIR=${BUILDDIR_REL} CHIBIOS=${CH_ROOT_REL} AP_HAL=${AP_HAL_REL} ${CHIBIOS_BUILD_FLAGS} ${CHIBIOS_BOARD_NAME} ${MAKE} pass -f '${BOARD_MK}'",

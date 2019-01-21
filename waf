@@ -20,8 +20,9 @@ except subprocess.CalledProcessError as e:
     print('Missing waf submodule. Trying to get it')
 
     try:
-        subprocess.check_call(['git', 'submodule', 'update', '--init',
-                               'modules/waf'])
+        subprocess.check_call(
+            ['git', 'submodule', 'update', '--init', 'modules/waf']
+        )
     except subprocess.CalledProcessError:
         print('Could not update submodule', file=sys.stderr)
         sys.exit(1)

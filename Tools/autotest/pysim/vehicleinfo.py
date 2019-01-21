@@ -244,12 +244,14 @@ class VehicleInfo(object):
         return self.options[vehicle]["default_frame"]
 
     def default_waf_target(self, vehicle):
-        """Returns a waf target based on vehicle type, which is often determined by which directory the user is in"""
+        """Returns a waf target based on vehicle type, which is often determined by which directory the user is in
+        """
         default_frame = self.default_frame(vehicle)
         return self.options[vehicle]["frames"][default_frame]["waf_target"]
 
     def options_for_frame(self, frame, vehicle, opts):
-        """Return informatiom about how to sitl for frame e.g. build-type==sitl"""
+        """Return informatiom about how to sitl for frame e.g. build-type==sitl
+        """
         ret = None
         frames = self.options[vehicle]["frames"]
         if frame in frames:

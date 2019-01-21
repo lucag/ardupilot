@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # encoding: utf-8
 
 from __future__ import print_function
@@ -6,6 +6,8 @@ from __future__ import print_function
 
 import os.path
 import sys
+from pprint import pformat
+
 sys.path.insert(0, 'Tools/ardupilotwaf/')
 
 import waftools
@@ -213,9 +215,11 @@ def _collect_autoconfig_files(cfg):
             with open(p, 'rb') as f:
                 cfg.hash = Utils.h_list((cfg.hash, f.read()))
                 cfg.files.append(p)
+    # cfg.msg('**_collect_autoconfig_files', pformat(cfg.files))
 
 
 def configure(cfg):
+    # type: (Context) -> None
     cfg.load('eclipse')
 
     if cfg.options.board is None:
@@ -326,8 +330,8 @@ def configure(cfg):
 
     _collect_autoconfig_files(cfg)
 
-
 def collect_dirs_to_recurse(bld, globs, **kw):
+    # type: (Build, object, dict) -> List
     dirs = []
     globs = Utils.to_list(globs)
 
@@ -338,6 +342,7 @@ def collect_dirs_to_recurse(bld, globs, **kw):
     for g in globs:
         for d in bld.srcnode.ant_glob(g + '/wscript', **kw):
             dirs.append(d.parent.relpath())
+
     return dirs
 
 
@@ -369,6 +374,7 @@ def _build_cmd_tweaks(bld):
 
 
 def _build_dynamic_sources(bld):
+    # type: (Build) -> None
     if not bld.env.BOOTLOADER:
         bld(
             features='mavgen',
@@ -473,6 +479,8 @@ def _build_recursion(bld):
     # recompilation.
     dirs_to_recurse.sort()
 
+    print('_build_recursion: %s' % pformat(dirs_to_recurse))
+
     for d in dirs_to_recurse:
         bld.recurse(d)
 
@@ -495,6 +503,7 @@ def _load_pre_build(bld):
 
 
 def build(bld):
+    # type: (Build) -> None
     config_hash = Utils.h_file(bld.bldnode.make_node('ap_config.h').abspath())
     bld.env.CCDEPS = config_hash
     bld.env.CXXDEPS = config_hash
