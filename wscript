@@ -479,7 +479,7 @@ def _build_recursion(bld):
     # recompilation.
     dirs_to_recurse.sort()
 
-    print('_build_recursion: %s' % pformat(dirs_to_recurse))
+    # print('_build_recursion: %s' % pformat(dirs_to_recurse))
 
     for d in dirs_to_recurse:
         bld.recurse(d)

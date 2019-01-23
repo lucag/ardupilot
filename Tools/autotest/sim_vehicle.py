@@ -474,7 +474,7 @@ def run_in_terminal_window(autotest, name, cmd):
     runme.extend(cmd)
     progress_cmd("Run " + name, runme)
 
-    if under_macos() and os.environ.get('DISPLAY'):
+    if under_macos(): # and os.environ.get('DISPLAY'):
         # on MacOS record the window IDs so we can close them later
         out = subprocess.Popen(runme, stdout=subprocess.PIPE).communicate()[0]
         out = out.decode('utf-8')
