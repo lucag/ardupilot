@@ -99,6 +99,9 @@ void Rover::update_wheel_encoder()
         const float delta_angle = curr_angle_rad - wheel_encoder_last_angle_rad[i];
         wheel_encoder_last_angle_rad[i] = curr_angle_rad;
 
+        // save cumulative distances at current time (in meters)
+        wheel_encoder_last_distance_m[i] = g2.wheel_encoder.get_distance(i);
+
         // calculate delta time
         float delta_time;
         const uint32_t latest_sensor_update_ms = g2.wheel_encoder.get_last_reading_ms(i);
@@ -119,7 +122,7 @@ void Rover::update_wheel_encoder()
          * timeStamp_ms is the time when the rotation was last measured (msec)
          * posOffset is the XYZ body frame position of the wheel hub (m)
          */
-        EKF3.writeWheelOdom(delta_angle, delta_time, wheel_encoder_last_update_ms[i], g2.wheel_encoder.get_position(i), g2.wheel_encoder.get_wheel_radius(i));
+        EKF3.writeWheelOdom(delta_angle, delta_time, wheel_encoder_last_update_ms[i], g2.wheel_encoder.get_pos_offset(i), g2.wheel_encoder.get_wheel_radius(i));
 
         // calculate rpm for reporting to GCS
         if (is_positive(delta_time)) {
