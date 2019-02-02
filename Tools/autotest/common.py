@@ -1562,6 +1562,21 @@ class AutoTest(ABC):
             raise NotAchievedException("home position not updated")
         return m
 
+    def monitor_groundspeed(self, want, tolerance=0.5, timeout=5):
+        tstart = self.get_sim_time()
+        while True:
+            if self.get_sim_time() - tstart > timeout:
+                break
+            m = self.mav.recv_match(type='VFR_HUD', blocking=True)
+            if m.groundspeed > want+tolerance:
+                raise NotAchievedException("Too fast (%f > %f)" %
+                                           (m.groundspeed, want))
+            if m.groundspeed < want-tolerance:
+                raise NotAchievedException("Too slow (%f < %f)" %
+                                           (m.groundspeed, want))
+            self.progress("GroundSpeed OK (got=%f) (want=%f)" %
+                          (m.groundspeed, want))
+
     def test_arm_feature(self):
         """Common feature to test."""
         self.context_push()
@@ -1752,6 +1767,21 @@ class AutoTest(ABC):
             raise NotAchievedException("Rate not achieved (got %f want %u)" %
                                        (new_measured_rate, expected_rate))
 
+        # make sure get_message_interval works:
+        self.mavproxy.send("long GET_MESSAGE_INTERVAL %u\n" %
+                           (self.victim_message_id))
+        m = self.mav.recv_match(type='MESSAGE_INTERVAL', blocking=True)
+        want = set_interval
+        if set_interval == 0:
+            want = self.rate_to_interval_us(expected_rate)
+
+        if m.interval_us != want:
+            raise NotAchievedException("Did not read same interval back from autopilot: want=%d got=%d)" %
+            (want, m.interval_us))
+        m = self.mav.recv_match(type='COMMAND_ACK', blocking=True)
+        if m.result != mavutil.mavlink.MAV_RESULT_ACCEPTED:
+            raise NotAchievedException("Expected ACCEPTED for reading message interval")
+
     def test_set_message_interval(self):
         self.victim_message = 'VFR_HUD'
         self.victim_message_id = mavutil.mavlink.MAVLINK_MSG_ID_VFR_HUD
@@ -1799,6 +1829,15 @@ class AutoTest(ABC):
             if abs(rate - want_rate) > 2:
                 raise NotAchievedException("Did not get expected rate")
 
+            non_existant_id = 145
+            self.mavproxy.send("long GET_MESSAGE_INTERVAL %u\n" %
+                               (non_existant_id))
+            m = self.mav.recv_match(type='MESSAGE_INTERVAL', blocking=True)
+            if m.interval_us != 0:
+                raise NotAchievedException("Supposed to get 0 back for unsupported stream")
+            m = self.mav.recv_match(type='COMMAND_ACK', blocking=True)
+            if m.result != mavutil.mavlink.MAV_RESULT_FAILED:
+                raise NotAchievedException("Getting rate of unsupported message is a failure")
 
             sr = self.sitl_streamrate()
             self.mavproxy.send("set streamrate %u\n" % sr)

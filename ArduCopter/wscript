@@ -12,7 +12,6 @@ def build(bld):
             'AP_Buffer',
             'AC_AttitudeControl',
             'AC_InputManager',
-            'AC_Fence',
             'AC_PID',
             'AC_PrecLand',
             'AC_Sprayer',
