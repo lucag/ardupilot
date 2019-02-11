@@ -56,11 +56,19 @@ void Rover::init_ardupilot()
     BoardConfig_CAN.init();
 #endif
 
+    // init gripper
+#if GRIPPER_ENABLED == ENABLED
+    g2.gripper.init();
+#endif
+
     // initialise notify system
     notify.init();
     notify_mode(control_mode);
 
     battery.init();
+
+    // Initialise RPM sensor
+    rpm_sensor.init();
 
     rssi.init();
 

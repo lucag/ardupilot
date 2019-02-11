@@ -2910,6 +2910,37 @@ void GCS_MAVLINK::handle_command_ack(const mavlink_message_t* msg)
     }
 }
 
+// allow override of RC channel values for HIL or for complete GCS
+// control of switch position and RC PWM values.
+void GCS_MAVLINK::handle_rc_channels_override(const mavlink_message_t *msg)
+{
+    if(msg->sysid != sysid_my_gcs()) {
+        return; // Only accept control from our gcs
+    }
+
+    const uint32_t tnow = AP_HAL::millis();
+
+    mavlink_rc_channels_override_t packet;
+    mavlink_msg_rc_channels_override_decode(msg, &packet);
+
+    RC_Channels::set_override(0, packet.chan1_raw, tnow);
+    RC_Channels::set_override(1, packet.chan2_raw, tnow);
+    RC_Channels::set_override(2, packet.chan3_raw, tnow);
+    RC_Channels::set_override(3, packet.chan4_raw, tnow);
+    RC_Channels::set_override(4, packet.chan5_raw, tnow);
+    RC_Channels::set_override(5, packet.chan6_raw, tnow);
+    RC_Channels::set_override(6, packet.chan7_raw, tnow);
+    RC_Channels::set_override(7, packet.chan8_raw, tnow);
+    RC_Channels::set_override(8, packet.chan9_raw, tnow);
+    RC_Channels::set_override(9, packet.chan10_raw, tnow);
+    RC_Channels::set_override(10, packet.chan11_raw, tnow);
+    RC_Channels::set_override(11, packet.chan12_raw, tnow);
+    RC_Channels::set_override(12, packet.chan13_raw, tnow);
+    RC_Channels::set_override(13, packet.chan14_raw, tnow);
+    RC_Channels::set_override(14, packet.chan15_raw, tnow);
+    RC_Channels::set_override(15, packet.chan16_raw, tnow);
+}
+
 /*
   handle messages which don't require vehicle specific data
  */
@@ -2992,6 +3023,11 @@ void GCS_MAVLINK::handle_common_message(mavlink_message_t *msg)
         handle_command_int(msg);
         break;
 
+    case MAVLINK_MSG_ID_FENCE_POINT:
+    case MAVLINK_MSG_ID_FENCE_FETCH_POINT:
+        handle_fence_message(msg);
+        break;
+
     case MAVLINK_MSG_ID_GIMBAL_REPORT:
         handle_mount_message(msg);
         break;
@@ -3066,8 +3102,11 @@ void GCS_MAVLINK::handle_common_message(mavlink_message_t *msg)
     case MAVLINK_MSG_ID_SYSTEM_TIME:
         handle_system_time_message(msg);
         break;
-    }
 
+    case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE:
+        handle_rc_channels_override(msg);
+        break;
+    }
 }
 
 void GCS_MAVLINK::handle_common_mission_message(mavlink_message_t *msg)
@@ -3443,6 +3482,10 @@ MAV_RESULT GCS_MAVLINK::handle_command_long_packet(const mavlink_command_long_t 
         result = handle_command_do_send_banner(packet);
         break;
 
+    case MAV_CMD_DO_FENCE_ENABLE:
+        result = handle_command_do_fence_enable(packet);
+        break;
+
     case MAV_CMD_PREFLIGHT_REBOOT_SHUTDOWN:
         result = handle_preflight_reboot(packet);
         break;
@@ -3694,6 +3737,45 @@ void GCS_MAVLINK::send_hwstatus()
         chan,
         hal.analogin->board_voltage()*1000,
         0);
+}
+
+
+void GCS_MAVLINK::send_sys_status()
+{
+    // send extended status only once vehicle has been initialised
+    // to avoid unnecessary errors being reported to user
+    if (!vehicle_initialised()) {
+        return;
+    }
+
+    int16_t battery_current = -1;
+    int8_t battery_remaining = -1;
+
+    const AP_BattMonitor &battery = AP::battery();
+
+    if (battery.has_current() && battery.healthy()) {
+        battery_remaining = battery.capacity_remaining_pct();
+        battery_current = battery.current_amps() * 100;
+    }
+
+    uint32_t control_sensors_present;
+    uint32_t control_sensors_enabled;
+    uint32_t control_sensors_health;
+
+    get_sensor_status_flags(control_sensors_present, control_sensors_enabled, control_sensors_health);
+
+    mavlink_msg_sys_status_send(
+        chan,
+        control_sensors_present,
+        control_sensors_enabled,
+        control_sensors_health,
+        static_cast<uint16_t>(AP::scheduler().load_average() * 1000),
+        battery.voltage() * 1000,  // mV
+        battery_current,        // in 10mA units
+        battery_remaining,      // in %
+        0,  // comm drops %,
+        0,  // comm drops in pkts,
+        0, 0, 0, 0);
 }
 
 void GCS_MAVLINK::send_attitude() const
@@ -3953,6 +4035,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
     case MSG_SIMSTATE:
         CHECK_PAYLOAD_SIZE(SIMSTATE);
         send_simstate();
+        break;
+
+    case MSG_SYS_STATUS:
+        CHECK_PAYLOAD_SIZE(SYS_STATUS);
+        send_sys_status();
         break;
 
     case MSG_AHRS2:

@@ -225,6 +225,7 @@ public:
     static void send_collision_all(const AP_Avoidance::Obstacle &threat, MAV_COLLISION_ACTION behaviour);
     void send_accelcal_vehicle_position(uint32_t position);
     void send_scaled_imu(uint8_t instance, void (*send_fn)(mavlink_channel_t chan, uint32_t time_ms, int16_t xacc, int16_t yacc, int16_t zacc, int16_t xgyro, int16_t ygyro, int16_t zgyro, int16_t xmag, int16_t ymag, int16_t zmag));
+    void send_sys_status();
 
     // return a bitmap of active channels. Used by libraries to loop
     // over active channels to send to all active channels    
@@ -295,6 +296,7 @@ protected:
     virtual MAV_MODE base_mode() const = 0;
     virtual uint32_t custom_mode() const = 0;
     virtual MAV_STATE system_status() const = 0;
+    virtual void get_sensor_status_flags(uint32_t &present, uint32_t &enabled, uint32_t &health) = 0;
 
     bool            waypoint_receiving; // currently receiving
     // the following two variables are only here because of Tracker
@@ -330,11 +332,13 @@ protected:
     void handle_param_request_list(mavlink_message_t *msg);
     void handle_param_request_read(mavlink_message_t *msg);
     virtual bool params_ready() const { return true; }
+    virtual void handle_rc_channels_override(const mavlink_message_t *msg);
     void handle_system_time_message(const mavlink_message_t *msg);
     void handle_common_rally_message(mavlink_message_t *msg);
     void handle_rally_fetch_point(mavlink_message_t *msg);
     void handle_rally_point(mavlink_message_t *msg);
     virtual void handle_mount_message(const mavlink_message_t *msg);
+    void handle_fence_message(mavlink_message_t *msg);
     void handle_param_value(mavlink_message_t *msg);
     void handle_radio_status(mavlink_message_t *msg, AP_Logger &dataflash, bool log_radio);
     void handle_serial_control(const mavlink_message_t *msg);
@@ -404,6 +408,7 @@ protected:
     MAV_RESULT handle_command_do_gripper(const mavlink_command_long_t &packet);
     MAV_RESULT handle_command_do_set_mode(const mavlink_command_long_t &packet);
     MAV_RESULT handle_command_get_home_position(const mavlink_command_long_t &packet);
+    MAV_RESULT handle_command_do_fence_enable(const mavlink_command_long_t &packet);
 
     // vehicle-overridable message send function
     virtual bool try_send_message(enum ap_message id);

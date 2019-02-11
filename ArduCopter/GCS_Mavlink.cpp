@@ -118,30 +118,15 @@ void GCS_MAVLINK_Copter::send_position_target_global_int()
         0.0f); // yaw_rate
 }
 
-NOINLINE void Copter::send_sys_status(mavlink_channel_t chan)
+void GCS_MAVLINK_Copter::get_sensor_status_flags(uint32_t &present,
+                                                uint32_t &enabled,
+                                                uint32_t &health)
 {
-    int16_t battery_current = -1;
-    int8_t battery_remaining = -1;
+    copter.update_sensor_status_flags();
 
-    if (battery.has_current() && battery.healthy()) {
-        battery_remaining = battery.capacity_remaining_pct();
-        battery_current = battery.current_amps() * 100;
-    }
-
-    update_sensor_status_flags();
-    
-    mavlink_msg_sys_status_send(
-        chan,
-        control_sensors_present,
-        control_sensors_enabled,
-        control_sensors_health,
-        (uint16_t)(scheduler.load_average() * 1000),
-        battery.voltage() * 1000, // mV
-        battery_current,        // in 10mA units
-        battery_remaining,      // in %
-        0, // comm drops %,
-        0, // comm drops in pkts,
-        0, 0, 0, 0);
+    present = copter.control_sensors_present;
+    enabled = copter.control_sensors_enabled;
+    health = copter.control_sensors_health;
 }
 
 void NOINLINE Copter::send_nav_controller_output(mavlink_channel_t chan)
@@ -268,16 +253,6 @@ bool GCS_MAVLINK_Copter::try_send_message(enum ap_message id)
 #endif
 
     switch(id) {
-
-    case MSG_SYS_STATUS:
-        // send extended status only once vehicle has been initialised
-        // to avoid unnecessary errors being reported to user
-        if (!vehicle_initialised()) {
-            return true;
-        }
-        CHECK_PAYLOAD_SIZE(SYS_STATUS);
-        copter.send_sys_status(chan);
-        break;
 
     case MSG_NAV_CONTROLLER_OUTPUT:
         CHECK_PAYLOAD_SIZE(NAV_CONTROLLER_OUTPUT);
@@ -551,6 +526,12 @@ void GCS_MAVLINK_Copter::send_banner()
     send_text(MAV_SEVERITY_INFO, "Frame: %s", copter.get_frame_string());
 }
 
+// a RC override message is considered to be a 'heartbeat' from the ground station for failsafe purposes
+void GCS_MAVLINK_Copter::handle_rc_channels_override(const mavlink_message_t *msg)
+{
+    copter.failsafe.last_heartbeat_ms = AP_HAL::millis();
+    GCS_MAVLINK::handle_rc_channels_override(msg);
+}
 
 void GCS_MAVLINK_Copter::handle_command_ack(const mavlink_message_t* msg)
 {
@@ -799,20 +780,6 @@ MAV_RESULT GCS_MAVLINK_Copter::handle_command_long_packet(const mavlink_command_
         }
         return MAV_RESULT_FAILED;
 
-#if AC_FENCE == ENABLED
-    case MAV_CMD_DO_FENCE_ENABLE:
-        switch ((uint16_t)packet.param1) {
-        case 0:
-            copter.fence.enable(false);
-            return MAV_RESULT_ACCEPTED;
-        case 1:
-            copter.fence.enable(true);
-            return MAV_RESULT_ACCEPTED;
-        default:
-            return MAV_RESULT_FAILED;
-        }
-#endif
-
 #if PARACHUTE == ENABLED
     case MAV_CMD_DO_PARACHUTE:
         // configure or release parachute
@@ -993,34 +960,6 @@ void GCS_MAVLINK_Copter::handleMessage(mavlink_message_t* msg)
         // We keep track of the last time we received a heartbeat from our GCS for failsafe purposes
         if(msg->sysid != copter.g.sysid_my_gcs) break;
         copter.failsafe.last_heartbeat_ms = AP_HAL::millis();
-        break;
-    }
-
-    case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE:       // MAV ID: 70
-    {
-        // allow override of RC channel values for HIL
-        // or for complete GCS control of switch position
-        // and RC PWM values.
-        if(msg->sysid != copter.g.sysid_my_gcs) {
-            break; // Only accept control from our gcs
-        }
-
-        uint32_t tnow = AP_HAL::millis();
-
-        mavlink_rc_channels_override_t packet;
-        mavlink_msg_rc_channels_override_decode(msg, &packet);
-
-        RC_Channels::set_override(0, packet.chan1_raw, tnow);
-        RC_Channels::set_override(1, packet.chan2_raw, tnow);
-        RC_Channels::set_override(2, packet.chan3_raw, tnow);
-        RC_Channels::set_override(3, packet.chan4_raw, tnow);
-        RC_Channels::set_override(4, packet.chan5_raw, tnow);
-        RC_Channels::set_override(5, packet.chan6_raw, tnow);
-        RC_Channels::set_override(6, packet.chan7_raw, tnow);
-        RC_Channels::set_override(7, packet.chan8_raw, tnow);
-
-        // a RC override message is considered to be a 'heartbeat' from the ground station for failsafe purposes
-        copter.failsafe.last_heartbeat_ms = tnow;
         break;
     }
 
@@ -1244,14 +1183,11 @@ void GCS_MAVLINK_Copter::handleMessage(mavlink_message_t* msg)
                 case MAV_FRAME_GLOBAL:
                 case MAV_FRAME_GLOBAL_INT:
                 default:
-                    // pv_location_to_vector does not support absolute altitudes.
-                    // Convert the absolute altitude to a home-relative altitude before calling pv_location_to_vector
-                    loc.alt -= copter.ahrs.get_home().alt;
-                    loc.relative_alt = true;
-                    loc.terrain_alt = false;
                     break;
             }
-            pos_neu_cm = copter.pv_location_to_vector(loc);
+            if (!loc.get_vector_from_origin_NEU(pos_neu_cm)) {
+                break;
+            }
         }
 
         // prepare yaw
@@ -1354,14 +1290,6 @@ void GCS_MAVLINK_Copter::handleMessage(mavlink_message_t* msg)
         copter.precland.handle_msg(msg);
         break;
 #endif
-
-#if AC_FENCE == ENABLED
-    // send or receive fence points with GCS
-    case MAVLINK_MSG_ID_FENCE_POINT:            // MAV ID: 160
-    case MAVLINK_MSG_ID_FENCE_FETCH_POINT:
-        copter.fence.handle_msg(*this, msg);
-        break;
-#endif // AC_FENCE == ENABLED
 
     case MAVLINK_MSG_ID_TERRAIN_DATA:
     case MAVLINK_MSG_ID_TERRAIN_CHECK:

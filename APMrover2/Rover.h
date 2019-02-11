@@ -54,10 +54,12 @@
 #include <AP_RangeFinder/AP_RangeFinder.h>          // Range finder library
 #include <AP_RCMapper/AP_RCMapper.h>                // RC input mapping library
 #include <AP_Relay/AP_Relay.h>                      // APM relay
+#include <AP_RPM/AP_RPM.h>
 #include <AP_RSSI/AP_RSSI.h>                        // RSSI Library
 #include <AP_Scheduler/AP_Scheduler.h>              // main loop scheduler
 #include <AP_SerialManager/AP_SerialManager.h>      // Serial manager library
 #include <AP_ServoRelayEvents/AP_ServoRelayEvents.h>
+#include <AP_Gripper/AP_Gripper.h>
 #include <AP_Stats/AP_Stats.h>                      // statistics library
 #include <AP_Terrain/AP_Terrain.h>
 #include <AP_Vehicle/AP_Vehicle.h>                  // needed for AHRS build
@@ -176,6 +178,9 @@ private:
     // flight modes convenience array
     AP_Int8 *modes;
     const uint8_t num_modes = 6;
+
+    // AP_RPM Module
+    AP_RPM rpm_sensor;
 
     // Inertial Navigation EKF
 #if AP_AHRS_NAVEKF_AVAILABLE
@@ -339,7 +344,6 @@ private:
     float wheel_encoder_last_distance_m[WHEELENCODER_MAX_INSTANCES];    // distance in meters at time of last update to EKF (for reporting to GCS)
     uint32_t wheel_encoder_last_update_ms[WHEELENCODER_MAX_INSTANCES];  // system time of last ping from each encoder
     uint32_t wheel_encoder_last_ekf_update_ms;                          // system time of last encoder data push to EKF
-    float wheel_encoder_rpm[WHEELENCODER_MAX_INSTANCES];                // for reporting to GCS
 
     // True when we are doing motor test
     bool motor_test;
@@ -438,11 +442,10 @@ private:
     void fence_check();
 
     // GCS_Mavlink.cpp
-    void send_sys_status(mavlink_channel_t chan);
     void send_nav_controller_output(mavlink_channel_t chan);
     void send_servo_out(mavlink_channel_t chan);
     void send_pid_tuning(mavlink_channel_t chan);
-    void send_wheel_encoder(mavlink_channel_t chan);
+    void send_rpm(mavlink_channel_t chan);
     void send_wheel_encoder_distance(mavlink_channel_t chan);
 
     // Log.cpp
@@ -458,7 +461,6 @@ private:
     void Log_Write_Throttle();
     void Log_Write_Rangefinder();
     void Log_Write_RC(void);
-    void Log_Write_WheelEncoder();
     void Log_Write_Vehicle_Startup_Messages();
     void Log_Read(uint16_t log_num, uint16_t start_page, uint16_t end_page);
     void log_init(void);
@@ -510,6 +512,7 @@ private:
     void set_servos(void);
 
     // system.cpp
+    void rpm_update(void);
     void init_ardupilot();
     void startup_ground(void);
     void update_ahrs_flyforward();

@@ -727,7 +727,6 @@ private:
 
     // GCS_Mavlink.cpp
     void gcs_send_heartbeat(void);
-    void send_sys_status(mavlink_channel_t chan);
     void send_nav_controller_output(mavlink_channel_t chan);
     void send_rpm(mavlink_channel_t chan);
 
@@ -757,7 +756,7 @@ private:
     void Log_Write_Attitude();
     void Log_Write_EKF_POS();
     void Log_Write_MotBatt();
-    void Log_Write_Event(uint8_t id);
+    void Log_Write_Event(Log_Event id);
     void Log_Write_Data(uint8_t id, int32_t value);
     void Log_Write_Data(uint8_t id, uint32_t value);
     void Log_Write_Data(uint8_t id, int16_t value);
@@ -808,10 +807,8 @@ private:
     void convert_lgr_parameters(void);
 
     // position_vector.cpp
-    Vector3f pv_location_to_vector(const Location& loc);
     float pv_alt_above_origin(float alt_above_home_cm);
     float pv_alt_above_home(float alt_above_origin_cm);
-    float pv_distance_to_home_cm(const Vector3f &destination);
 
     // precision_landing.cpp
     void init_precland();

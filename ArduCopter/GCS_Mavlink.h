@@ -44,9 +44,12 @@ private:
     void handle_command_ack(const mavlink_message_t* msg) override;
     bool handle_guided_request(AP_Mission::Mission_Command &cmd) override;
     void handle_change_alt_request(AP_Mission::Mission_Command &cmd) override;
+    void handle_rc_channels_override(const mavlink_message_t *msg) override;
     bool try_send_message(enum ap_message id) override;
 
     bool vehicle_initialised() const override;
+
+    void get_sensor_status_flags(uint32_t &present, uint32_t &enabled, uint32_t &health);
 
     void packetReceived(const mavlink_status_t &status,
                         mavlink_message_t &msg) override;

@@ -123,13 +123,6 @@ void Rover::update_wheel_encoder()
          * posOffset is the XYZ body frame position of the wheel hub (m)
          */
         EKF3.writeWheelOdom(delta_angle, delta_time, wheel_encoder_last_update_ms[i], g2.wheel_encoder.get_pos_offset(i), g2.wheel_encoder.get_wheel_radius(i));
-
-        // calculate rpm for reporting to GCS
-        if (is_positive(delta_time)) {
-            wheel_encoder_rpm[i] = (delta_angle / M_2PI) / (delta_time / 60.0f);
-        } else {
-            wheel_encoder_rpm[i] = 0.0f;
-        }
     }
 
     // record system time update for next iteration
@@ -252,6 +245,18 @@ void Rover::read_airspeed(void)
     g2.airspeed.update(should_log(MASK_LOG_IMU));
 }
 
+/*
+  update RPM sensors
+ */
+void Rover::rpm_update(void)
+{
+    rpm_sensor.update();
+    if (rpm_sensor.enabled(0) || rpm_sensor.enabled(1)) {
+        if (should_log(MASK_LOG_RC)) {
+            logger.Write_RPM(rpm_sensor);
+        }
+    }
+}
 // update error mask of sensors and subsystems. The mask
 // uses the MAV_SYS_STATUS_* values from mavlink. If a bit is set
 // then it indicates that the sensor or subsystem is present but

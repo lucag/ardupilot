@@ -475,7 +475,9 @@ private:
     void rotate_body_frame_to_NE(float &x, float &y);
     void gcs_send_heartbeat(void);
     void send_heartbeat(mavlink_channel_t chan);
-    void send_sys_status(mavlink_channel_t chan);
+    void get_sensor_status_flags(uint32_t &control_sensors_present,
+                                 uint32_t &control_sensors_enabled,
+                                 uint32_t &control_sensors_health);
     void send_nav_controller_output(mavlink_channel_t chan);
 #if RPM_ENABLED == ENABLED
     void send_rpm(mavlink_channel_t chan);
@@ -486,7 +488,7 @@ private:
     void Log_Write_Performance();
     void Log_Write_Attitude();
     void Log_Write_MotBatt();
-    void Log_Write_Event(uint8_t id);
+    void Log_Write_Event(Log_Event id);
     void Log_Write_Data(uint8_t id, int32_t value);
     void Log_Write_Data(uint8_t id, uint32_t value);
     void Log_Write_Data(uint8_t id, int16_t value);

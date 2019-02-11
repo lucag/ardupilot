@@ -45,7 +45,6 @@ class AutoTestSub(AutoTest):
         self.speedup = speedup
 
         self.sitl = None
-        self.hasInit = False
 
         self.log_name = "ArduSub"
 
@@ -86,14 +85,15 @@ class AutoTestSub(AutoTest):
 
         self.get_mavlink_connection_going()
 
-        self.hasInit = True
-
         self.apply_defaultfile_parameters()
 
         # FIXME:
         self.set_parameter("FS_GCS_ENABLE", 0)
 
         self.progress("Ready to start testing!")
+
+    def is_sub(self):
+        return True
 
     def dive_manual(self):
         self.wait_ready_to_arm()

@@ -409,6 +409,10 @@ const AP_Param::Info Rover::var_info[] = {
     GOBJECTN(EKF3, NavEKF3, "EK3_", NavEKF3),
 #endif
 
+    // @Group: RPM
+    // @Path: ../libraries/AP_RPM/AP_RPM.cpp
+    GOBJECT(rpm_sensor, "RPM", AP_RPM),
+
     // @Group: MIS_
     // @Path: ../libraries/AP_Mission/AP_Mission.cpp
     GOBJECTN(mode_auto.mission, mission, "MIS_", AP_Mission),
@@ -588,8 +592,8 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
 
     // @Param: LOIT_TYPE
     // @DisplayName: Loiter type
-    // @Description: Loiter behaviour when around next to a taget point
-    // @Values: 0:Reverse to target point,1:Always face bow to target point
+    // @Description: Loiter behaviour when moving to the target point
+    // @Values: 0:Forward or reverse to target point,1:Always face bow towards target point
     // @User: Standard
     AP_GROUPINFO("LOIT_TYPE", 25, ParametersG2, loit_type, 0),
 
@@ -683,6 +687,12 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Values: 0:Hold,1:Loiter
     // @User: Standard
     AP_GROUPINFO("MIS_DONE_BEHAVE", 38, ParametersG2, mis_done_behave, 0),
+
+#if GRIPPER_ENABLED == ENABLED
+    // @Group: GRIP_
+    // @Path: ../libraries/AP_Gripper/AP_Gripper.cpp
+    AP_SUBGROUPINFO(gripper, "GRIP_", 39, ParametersG2, AP_Gripper),
+#endif
 
     AP_GROUPEND
 };

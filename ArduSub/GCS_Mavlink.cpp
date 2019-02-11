@@ -84,12 +84,10 @@ MAV_STATE GCS_MAVLINK_Sub::system_status() const
     return MAV_STATE_STANDBY;
 }
 
-NOINLINE void Sub::send_sys_status(mavlink_channel_t chan)
+void Sub::get_sensor_status_flags(uint32_t &control_sensors_present,
+                                  uint32_t &control_sensors_enabled,
+                                  uint32_t &control_sensors_health)
 {
-    uint32_t control_sensors_present;
-    uint32_t control_sensors_enabled;
-    uint32_t control_sensors_health;
-
     // default sensors present
     control_sensors_present = MAVLINK_SENSOR_PRESENT_DEFAULT;
 
@@ -174,15 +172,6 @@ NOINLINE void Sub::send_sys_status(mavlink_channel_t chan)
         control_sensors_health &= ~MAV_SYS_STATUS_SENSOR_BATTERY;
     }
 
-    int16_t battery_current = -1;
-    int8_t battery_remaining = -1;
-
-    if (battery.has_current() && battery.healthy()) {
-        // percent remaining is not necessarily accurate at the moment
-        //battery_remaining = battery.capacity_remaining_pct();
-        battery_current = battery.current_amps() * 100;
-    }
-
 #if AP_TERRAIN_AVAILABLE && AC_TERRAIN
     switch (terrain.status()) {
     case AP_Terrain::TerrainStatusDisabled:
@@ -215,20 +204,13 @@ NOINLINE void Sub::send_sys_status(mavlink_channel_t chan)
         control_sensors_enabled &= ~(MAV_SYS_STATUS_SENSOR_3D_GYRO | MAV_SYS_STATUS_SENSOR_3D_ACCEL);
         control_sensors_health &= ~(MAV_SYS_STATUS_SENSOR_3D_GYRO | MAV_SYS_STATUS_SENSOR_3D_ACCEL);
     }
+}
 
-    mavlink_msg_sys_status_send(
-        chan,
-        control_sensors_present,
-        control_sensors_enabled,
-        control_sensors_health,
-        (uint16_t)(scheduler.load_average() * 1000),
-        battery.voltage() * 1000, // mV
-        battery_current,        // in 10mA units
-        battery_remaining,      // in %
-        0, // comm drops %,
-        0, // comm drops in pkts,
-        0, 0, 0, 0);
-
+void GCS_MAVLINK_Sub::get_sensor_status_flags(uint32_t &control_sensors_present,
+                                              uint32_t &control_sensors_enabled,
+                                              uint32_t &control_sensors_health)
+{
+    return sub.get_sensor_status_flags(control_sensors_present, control_sensors_enabled, control_sensors_health);
 }
 
 void NOINLINE Sub::send_nav_controller_output(mavlink_channel_t chan)
@@ -397,16 +379,6 @@ bool GCS_MAVLINK_Sub::try_send_message(enum ap_message id)
 
     case MSG_NAMED_FLOAT:
         send_info();
-        break;
-
-    case MSG_SYS_STATUS:
-        // send extended status only once vehicle has been initialised
-        // to avoid unnecessary errors being reported to user
-        if (!vehicle_initialised()) {
-            return true;
-        }
-        CHECK_PAYLOAD_SIZE(SYS_STATUS);
-        sub.send_sys_status(chan);
         break;
 
     case MSG_NAV_CONTROLLER_OUTPUT:
@@ -791,21 +763,6 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_command_long_packet(const mavlink_command_lon
         }
         return MAV_RESULT_FAILED;
 
-#if AC_FENCE == ENABLED
-    case MAV_CMD_DO_FENCE_ENABLE:
-        switch ((uint16_t)packet.param1) {
-        case 0:
-            sub.fence.enable(false);
-            return MAV_RESULT_ACCEPTED;
-        case 1:
-            sub.fence.enable(true);
-            return MAV_RESULT_ACCEPTED;
-        default:
-            break;
-        }
-        return MAV_RESULT_FAILED;
-#endif
-
     case MAV_CMD_DO_MOTOR_TEST:
         // param1 : motor sequence number (a number from 1 to max number of motors on the vehicle)
         // param2 : throttle type (0=throttle percentage, 1=PWM, 2=pilot throttle channel pass-through. See MOTOR_TEST_THROTTLE_TYPE enum)
@@ -855,32 +812,7 @@ void GCS_MAVLINK_Sub::handleMessage(mavlink_message_t* msg)
         break;
     }
 
-    case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE: {     // MAV ID: 70
-        // allow override of RC input
-        if (msg->sysid != sub.g.sysid_my_gcs) {
-            break;    // Only accept control from our gcs
-        }
-
-        uint32_t tnow = AP_HAL::millis();
-
-        mavlink_rc_channels_override_t packet;
-        mavlink_msg_rc_channels_override_decode(msg, &packet);
-
-        RC_Channels::set_override(0, packet.chan1_raw, tnow);
-        RC_Channels::set_override(1, packet.chan2_raw, tnow);
-        RC_Channels::set_override(2, packet.chan3_raw, tnow);
-        RC_Channels::set_override(3, packet.chan4_raw, tnow);
-        RC_Channels::set_override(4, packet.chan5_raw, tnow);
-        RC_Channels::set_override(5, packet.chan6_raw, tnow);
-        RC_Channels::set_override(6, packet.chan7_raw, tnow);
-        RC_Channels::set_override(7, packet.chan8_raw, tnow);
-
-        sub.failsafe.last_pilot_input_ms = tnow;
-        // a RC override message is considered to be a 'heartbeat' from the ground station for failsafe purposes
-        sub.failsafe.last_heartbeat_ms = tnow;
-        break;
-    }
-
+    
     case MAVLINK_MSG_ID_SET_ATTITUDE_TARGET: { // MAV ID: 82
         // decode packet
         mavlink_set_attitude_target_t packet;
@@ -1065,14 +997,6 @@ void GCS_MAVLINK_Sub::handleMessage(mavlink_message_t* msg)
         break;
     }
 
-#if AC_FENCE == ENABLED
-        // send or receive fence points with GCS
-    case MAVLINK_MSG_ID_FENCE_POINT:            // MAV ID: 160
-    case MAVLINK_MSG_ID_FENCE_FETCH_POINT:
-        sub.fence.handle_msg(*this, msg);
-        break;
-#endif // AC_FENCE == ENABLED
-
     case MAVLINK_MSG_ID_TERRAIN_DATA:
     case MAVLINK_MSG_ID_TERRAIN_CHECK:
 #if AP_TERRAIN_AVAILABLE && AC_TERRAIN
@@ -1119,6 +1043,14 @@ void GCS_MAVLINK_Sub::handleMessage(mavlink_message_t* msg)
         break;
     }     // end switch
 } // end handle mavlink
+
+
+// a RC override message is considered to be a 'heartbeat' from the ground station for failsafe purposes
+void GCS_MAVLINK_Sub::handle_rc_channels_override(const mavlink_message_t *msg)
+{
+    sub.failsafe.last_heartbeat_ms = AP_HAL::millis();
+    GCS_MAVLINK::handle_rc_channels_override(msg);
+}
 
 
 /*

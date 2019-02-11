@@ -38,6 +38,7 @@ private:
     void handleMessage(mavlink_message_t * msg) override;
     bool handle_guided_request(AP_Mission::Mission_Command &cmd) override;
     void handle_change_alt_request(AP_Mission::Mission_Command &cmd) override;
+    void handle_rc_channels_override(const mavlink_message_t *msg) override;
     bool try_send_message(enum ap_message id) override;
 
     bool send_info(void);
@@ -46,6 +47,7 @@ private:
     MAV_MODE base_mode() const override;
     uint32_t custom_mode() const override;
     MAV_STATE system_status() const override;
+    void get_sensor_status_flags(uint32_t &present, uint32_t &enabled, uint32_t &health);
 
     int16_t vfr_hud_throttle() const override;
 

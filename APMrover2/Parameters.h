@@ -58,7 +58,8 @@ public:
 
         // 97: RSSI
         k_param_rssi = 97,
-
+        k_param_rpm_sensor,     // rpm sensor 98
+        
         // 100: Arming parameters
         k_param_arming = 100,
 
@@ -369,6 +370,10 @@ public:
 
     // Sprayer
     AC_Sprayer sprayer;
+
+#if GRIPPER_ENABLED
+    AP_Gripper gripper;
+#endif
 
     // Rally point library
     AP_Rally_Rover rally;
