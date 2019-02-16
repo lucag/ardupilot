@@ -284,11 +284,13 @@ protected:
 
     virtual bool in_hil_mode() const { return false; }
 
+    bool mavlink_coordinate_frame_to_location_alt_frame(uint8_t coordinate_frame,
+                                                        Location::ALT_FRAME &frame);
+
     // overridable method to check for packet acceptance. Allows for
     // enforcement of GCS sysid
     bool accept_packet(const mavlink_status_t &status, mavlink_message_t &msg);
     virtual AP_AdvancedFailsafe *get_advanced_failsafe() const { return nullptr; };
-    virtual AP_VisualOdom *get_visual_odom() const { return nullptr; }
     virtual bool set_mode(uint8_t mode) = 0;
     void set_ekf_origin(const Location& loc);
 
@@ -317,7 +319,12 @@ protected:
     virtual void handle_command_ack(const mavlink_message_t* msg);
     void handle_set_mode(mavlink_message_t* msg);
     void handle_command_int(mavlink_message_t* msg);
+
+    MAV_RESULT handle_command_int_do_set_home(const mavlink_command_int_t &packet);
     virtual MAV_RESULT handle_command_int_packet(const mavlink_command_int_t &packet);
+
+    virtual bool set_home_to_current_location(bool lock) = 0;
+    virtual bool set_home(const Location& loc, bool lock) = 0;
 
     void handle_mission_request_list(AP_Mission &mission, mavlink_message_t *msg);
     void handle_mission_request(AP_Mission &mission, mavlink_message_t *msg);
@@ -480,8 +487,8 @@ private:
     uint32_t        waypoint_timelast_request; // milliseconds
     const uint16_t  waypoint_receive_timeout = 8000; // milliseconds
 
-    // number of extra 20ms intervals to add to slow things down for the radio
-    uint8_t         stream_slowdown;
+    // number of extra ms to add to slow things down for the radio
+    uint16_t         stream_slowdown_ms;
 
     // perf counters
     AP_HAL::Util::perf_counter_t _perf_packet;
@@ -689,7 +696,7 @@ private:
         uint32_t max_retry_deferred_body_us;
         uint8_t max_retry_deferred_body_type;
     } try_send_message_stats;
-    uint8_t max_slowdown;
+    uint16_t max_slowdown_ms;
 #endif
 
 };
@@ -713,7 +720,7 @@ public:
         }
     };
 
-    static class GCS *instance() {
+    static class GCS *get_singleton() {
         return _singleton;
     }
 

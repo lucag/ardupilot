@@ -746,52 +746,30 @@ void GCS_MAVLINK_Plane::packetReceived(const mavlink_status_t &status,
 }
 
 
+bool GCS_MAVLINK_Plane::set_home_to_current_location(bool lock)
+{
+    if (!plane.set_home_persistently(AP::gps().location())) {
+        return false;
+    }
+    if (lock) {
+        AP::ahrs().lock_home();
+    }
+    return true;
+}
+bool GCS_MAVLINK_Plane::set_home(const Location& loc, bool lock)
+{
+    if (!AP::ahrs().set_home(loc)) {
+        return false;
+    }
+    if (lock) {
+        AP::ahrs().lock_home();
+    }
+    return true;
+}
+
 MAV_RESULT GCS_MAVLINK_Plane::handle_command_int_packet(const mavlink_command_int_t &packet)
 {
     switch(packet.command) {
-
-    case MAV_CMD_DO_SET_HOME:
-        if (is_equal(packet.param1, 1.0f)) {
-            plane.set_home_persistently(AP::gps().location());
-            AP::ahrs().lock_home();
-            return MAV_RESULT_ACCEPTED;
-        } else {
-            // ensure param1 is zero
-            if (!is_zero(packet.param1)) {
-                return MAV_RESULT_FAILED;
-            }
-            if ((packet.x == 0) && (packet.y == 0) && is_zero(packet.z)) {
-                // don't allow the 0,0 position
-                return MAV_RESULT_FAILED;
-            }
-            // check frame type is supported
-            if (packet.frame != MAV_FRAME_GLOBAL &&
-                packet.frame != MAV_FRAME_GLOBAL_INT &&
-                packet.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT &&
-                packet.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT_INT) {
-                return MAV_RESULT_FAILED;
-            }
-            // sanity check location
-            if (!check_latlng(packet.x, packet.y)) {
-                return MAV_RESULT_FAILED;
-            }
-            Location new_home_loc {};
-            new_home_loc.lat = packet.x;
-            new_home_loc.lng = packet.y;
-            new_home_loc.alt = packet.z * 100;
-            // handle relative altitude
-            if (packet.frame == MAV_FRAME_GLOBAL_RELATIVE_ALT || packet.frame == MAV_FRAME_GLOBAL_RELATIVE_ALT_INT) {
-                if (!AP::ahrs().home_is_set()) {
-                    // cannot use relative altitude if home is not set
-                    return MAV_RESULT_FAILED;
-                }
-                new_home_loc.alt += plane.ahrs.get_home().alt;
-            }
-            plane.set_home(new_home_loc);
-            AP::ahrs().lock_home();
-            return MAV_RESULT_ACCEPTED;
-        }
-        return MAV_RESULT_FAILED;
 
     case MAV_CMD_DO_REPOSITION: {
         // sanity check location
@@ -994,7 +972,9 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_long_packet(const mavlink_command_l
         // param6 : longitude
         // param7 : altitude (absolute)
         if (is_equal(packet.param1,1.0f)) {
-            plane.set_home_persistently(AP::gps().location());
+            if (!plane.set_home_persistently(AP::gps().location())) {
+                return MAV_RESULT_FAILED;
+            }
             AP::ahrs().lock_home();
             return MAV_RESULT_ACCEPTED;
         } else {
@@ -1002,20 +982,13 @@ MAV_RESULT GCS_MAVLINK_Plane::handle_command_long_packet(const mavlink_command_l
             if (!is_zero(packet.param1)) {
                 return MAV_RESULT_FAILED;
             }
-            if (is_zero(packet.param5) && is_zero(packet.param6) && is_zero(packet.param7)) {
-                // don't allow the 0,0 position
-                return MAV_RESULT_FAILED;
-            }
-            // sanity check location
-            if (!check_latlng(packet.param5,packet.param6)) {
-                return MAV_RESULT_FAILED;
-            }
             Location new_home_loc {};
             new_home_loc.lat = (int32_t)(packet.param5 * 1.0e7f);
             new_home_loc.lng = (int32_t)(packet.param6 * 1.0e7f);
             new_home_loc.alt = (int32_t)(packet.param7 * 100.0f);
-            plane.set_home(new_home_loc);
-            AP::ahrs().lock_home();
+            if (!set_home(new_home_loc, true)) {
+                return MAV_RESULT_FAILED;
+            }
             return MAV_RESULT_ACCEPTED;
         }
         break;
@@ -1313,19 +1286,14 @@ void GCS_MAVLINK_Plane::handleMessage(mavlink_message_t* msg)
     {
         mavlink_set_home_position_t packet;
         mavlink_msg_set_home_position_decode(msg, &packet);
-        if((packet.latitude == 0) && (packet.longitude == 0) && (packet.altitude == 0)) {
-            // don't allow the 0,0 position
-            break;
-        }
-        // sanity check location
-        if (!check_latlng(packet.latitude,packet.longitude)) {
-            break;
-        }
         Location new_home_loc {};
         new_home_loc.lat = packet.latitude;
         new_home_loc.lng = packet.longitude;
         new_home_loc.alt = packet.altitude / 10;
-        plane.set_home(new_home_loc);
+        if (!set_home(new_home_loc, false)) {
+            // silently fails...
+            break;
+        }
         break;
     }
 

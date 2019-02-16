@@ -318,7 +318,7 @@ RC_Channel::percent_input() const
 }
 
 /*
-  Return true if the channel is at trim and within the DZ
+  return true if input is within deadzone of trim
 */
 bool RC_Channel::in_trim_dz() const
 {
@@ -665,7 +665,7 @@ void RC_Channel::do_aux_function(const aux_func_t ch_option, const aux_switch_po
         break;
 
     case LANDING_GEAR: {
-        AP_LandingGear *lg = AP_LandingGear::instance();
+        AP_LandingGear *lg = AP_LandingGear::get_singleton();
         if (lg == nullptr) {
             break;
         }

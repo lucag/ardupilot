@@ -620,55 +620,11 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_command_do_set_roi(const Location &roi_loc)
     return MAV_RESULT_ACCEPTED;
 }
 
-MAV_RESULT GCS_MAVLINK_Sub::handle_command_int_packet(const mavlink_command_int_t &packet)
-{
-    switch (packet.command) {
-
-    case MAV_CMD_DO_SET_HOME: {
-        // assume failure
-        if (is_equal(packet.param1, 1.0f)) {
-            // if param1 is 1, use current location
-            if (sub.set_home_to_current_location(true)) {
-                return MAV_RESULT_ACCEPTED;
-            }
-            return MAV_RESULT_FAILED;
-        }
-        // ensure param1 is zero
-        if (!is_zero(packet.param1)) {
-            return MAV_RESULT_FAILED;
-        }
-        // check frame type is supported
-        if (packet.frame != MAV_FRAME_GLOBAL &&
-            packet.frame != MAV_FRAME_GLOBAL_INT &&
-            packet.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT &&
-            packet.frame != MAV_FRAME_GLOBAL_RELATIVE_ALT_INT) {
-            return MAV_RESULT_FAILED;
-        }
-        // sanity check location
-        if (!check_latlng(packet.x, packet.y)) {
-            return MAV_RESULT_FAILED;
-        }
-        Location new_home_loc {};
-        new_home_loc.lat = packet.x;
-        new_home_loc.lng = packet.y;
-        new_home_loc.alt = packet.z * 100;
-        // handle relative altitude
-        if (packet.frame == MAV_FRAME_GLOBAL_RELATIVE_ALT || packet.frame == MAV_FRAME_GLOBAL_RELATIVE_ALT_INT) {
-            if (!AP::ahrs().home_is_set()) {
-                // cannot use relative altitude if home is not set
-                return MAV_RESULT_FAILED;
-            }
-            new_home_loc.alt += sub.ahrs.get_home().alt;
-        }
-        if (sub.set_home(new_home_loc, true)) {
-            return MAV_RESULT_ACCEPTED;
-        }
-        return MAV_RESULT_FAILED;
-    }
-
-    default:
-        return GCS_MAVLINK::handle_command_int_packet(packet);
-    }
+bool GCS_MAVLINK_Sub::set_home_to_current_location(bool lock) {
+    return sub.set_home_to_current_location(lock);
+}
+bool GCS_MAVLINK_Sub::set_home(const Location& loc, bool lock) {
+    return sub.set_home(loc, lock);
 }
 
 
@@ -723,10 +679,6 @@ MAV_RESULT GCS_MAVLINK_Sub::handle_command_long_packet(const mavlink_command_lon
         } else {
             // ensure param1 is zero
             if (!is_zero(packet.param1)) {
-                return MAV_RESULT_FAILED;
-            }
-            // sanity check location
-            if (!check_latlng(packet.param5, packet.param6)) {
                 return MAV_RESULT_FAILED;
             }
             Location new_home_loc;
@@ -928,16 +880,6 @@ void GCS_MAVLINK_Sub::handleMessage(mavlink_message_t* msg)
             break;
         }
 
-        // check for supported coordinate frames
-        if (packet.coordinate_frame != MAV_FRAME_GLOBAL &&
-                packet.coordinate_frame != MAV_FRAME_GLOBAL_INT &&
-                packet.coordinate_frame != MAV_FRAME_GLOBAL_RELATIVE_ALT && // solo shot manager incorrectly sends RELATIVE_ALT instead of RELATIVE_ALT_INT
-                packet.coordinate_frame != MAV_FRAME_GLOBAL_RELATIVE_ALT_INT &&
-                packet.coordinate_frame != MAV_FRAME_GLOBAL_TERRAIN_ALT &&
-                packet.coordinate_frame != MAV_FRAME_GLOBAL_TERRAIN_ALT_INT) {
-            break;
-        }
-
         bool pos_ignore      = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_POS_IGNORE;
         bool vel_ignore      = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_VEL_IGNORE;
         bool acc_ignore      = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_ACC_IGNORE;
@@ -956,29 +898,20 @@ void GCS_MAVLINK_Sub::handleMessage(mavlink_message_t* msg)
             if (!check_latlng(packet.lat_int, packet.lon_int)) {
                 break;
             }
-            Location loc;
-            loc.lat = packet.lat_int;
-            loc.lng = packet.lon_int;
-            loc.alt = packet.alt*100;
-            switch (packet.coordinate_frame) {
-            case MAV_FRAME_GLOBAL_RELATIVE_ALT: // solo shot manager incorrectly sends RELATIVE_ALT instead of RELATIVE_ALT_INT
-            case MAV_FRAME_GLOBAL_RELATIVE_ALT_INT:
-                loc.relative_alt = true;
-                loc.terrain_alt = false;
-                break;
-            case MAV_FRAME_GLOBAL_TERRAIN_ALT:
-            case MAV_FRAME_GLOBAL_TERRAIN_ALT_INT:
-                loc.relative_alt = true;
-                loc.terrain_alt = true;
-                break;
-            case MAV_FRAME_GLOBAL:
-            case MAV_FRAME_GLOBAL_INT:
-            default:
-                loc.relative_alt = false;
-                loc.terrain_alt = false;
+            Location::ALT_FRAME frame;
+            if (!mavlink_coordinate_frame_to_location_alt_frame(packet.coordinate_frame, frame)) {
+                // unknown coordinate frame
                 break;
             }
-            pos_neu_cm = sub.pv_location_to_vector(loc);
+            const Location loc{
+                packet.lat_int,
+                packet.lon_int,
+                int32_t(packet.alt*100),
+                frame,
+            };
+            if (!loc.get_vector_from_origin_NEU(pos_neu_cm)) {
+                break;
+            }
         }
 
         if (!pos_ignore && !vel_ignore && acc_ignore) {
@@ -1008,12 +941,10 @@ void GCS_MAVLINK_Sub::handleMessage(mavlink_message_t* msg)
         mavlink_set_home_position_t packet;
         mavlink_msg_set_home_position_decode(msg, &packet);
         if ((packet.latitude == 0) && (packet.longitude == 0) && (packet.altitude == 0)) {
-            sub.set_home_to_current_location(true);
-        } else {
-            // sanity check location
-            if (!check_latlng(packet.latitude, packet.longitude)) {
-                break;
+            if (!sub.set_home_to_current_location(true)) {
+                // ignore this failure
             }
+        } else {
             Location new_home_loc;
             new_home_loc.lat = packet.latitude;
             new_home_loc.lng = packet.longitude;
@@ -1021,7 +952,9 @@ void GCS_MAVLINK_Sub::handleMessage(mavlink_message_t* msg)
             if (sub.far_from_EKF_origin(new_home_loc)) {
                 break;
             }
-            sub.set_home(new_home_loc, true);
+            if (!sub.set_home(new_home_loc, true)) {
+                // silently ignored
+            }
         }
         break;
     }

@@ -296,10 +296,10 @@ private:
 
 #if FRSKY_TELEM_ENABLED == ENABLED
     // FrSky telemetry support
-    AP_Frsky_Telem frsky_telemetry{ahrs, battery, rangefinder};
+    AP_Frsky_Telem frsky_telemetry;
 #endif
 #if DEVO_TELEM_ENABLED == ENABLED
-    AP_DEVO_Telem devo_telemetry{ahrs};
+    AP_DEVO_Telem devo_telemetry;
 #endif
 
     uint32_t control_sensors_present;
@@ -335,9 +335,6 @@ private:
 
     // Store the time the last GPS message was received.
     uint32_t last_gps_msg_ms{0};
-
-    // last visual odometry update time
-    uint32_t visual_odom_last_update_ms;
 
     // last wheel encoder update times
     float wheel_encoder_last_angle_rad[WHEELENCODER_MAX_INSTANCES];     // distance in radians at time of last update to EKF
@@ -391,7 +388,6 @@ private:
     void update_compass(void);
     void update_logging1(void);
     void update_logging2(void);
-    void update_aux(void);
     void one_second_loop(void);
     void update_GPS(void);
     void update_current_mode(void);
@@ -407,9 +403,8 @@ private:
     void update_mission(void);
 
     // commands.cpp
-    void update_home_from_EKF();
-    bool set_home_to_current_location(bool lock);
-    bool set_home(const Location& loc, bool lock);
+    bool set_home_to_current_location(bool lock) WARN_IF_UNUSED;
+    bool set_home(const Location& loc, bool lock) WARN_IF_UNUSED;
     void update_home();
 
     // compat.cpp
@@ -474,7 +469,6 @@ private:
     // radio.cpp
     void set_control_channels(void);
     void init_rc_in();
-    void init_rc_out();
     void rudder_arm_disarm_check();
     void read_radio();
     void radio_failsafe_check(uint16_t pwm);
@@ -496,7 +490,6 @@ private:
     void init_compass_location(void);
     void init_beacon();
     void init_visual_odom();
-    void update_visual_odom();
     void update_wheel_encoder();
     void compass_cal_update(void);
     void compass_save(void);

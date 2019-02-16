@@ -19,8 +19,8 @@ from common import NotAchievedException, AutoTestTimeoutException, PreconditionF
 
 # get location of scripts
 testdir = os.path.dirname(os.path.realpath(__file__))
-HOME = mavutil.location(-35.362938, 149.165085, 584, 270)
-AVCHOME = mavutil.location(40.072842, -105.230575, 1586, 0)
+SITL_START_LOCATION = mavutil.location(-35.362938, 149.165085, 584, 270)
+SITL_START_LOCATION_AVC = mavutil.location(40.072842, -105.230575, 1586, 0)
 
 
 # Flight mode switch positions are set-up in arducopter.param to be
@@ -51,16 +51,14 @@ class AutoTestCopter(AutoTest):
         self.gdbserver = gdbserver
         self.breakpoints = breakpoints
 
-        self.home = "%f,%f,%u,%u" % (HOME.lat,
-                                     HOME.lng,
-                                     HOME.alt,
-                                     HOME.heading)
-        self.homeloc = None
         self.speedup = speedup
 
         self.log_name = "ArduCopter"
 
         self.sitl = None
+
+    def sitl_start_location(self):
+        return SITL_START_LOCATION
 
     def mavproxy_options(self):
         ret = super(AutoTestCopter, self).mavproxy_options()
@@ -82,7 +80,7 @@ class AutoTestCopter(AutoTest):
 
         self.sitl = util.start_SITL(self.binary,
                                     model=self.frame,
-                                    home=self.home,
+                                    home=self.sitl_home(),
                                     speedup=self.speedup,
                                     valgrind=self.valgrind,
                                     gdb=self.gdb,
@@ -349,14 +347,12 @@ class AutoTestCopter(AutoTest):
         self.save_wp()
 
         # save the stored mission to file
-        global num_wp
         num_wp = self.save_mission_to_file(os.path.join(testdir,
                                                         "ch7_mission.txt"))
         if not num_wp:
             self.fail_list.append("save_mission_to_file")
             self.progress("save_mission_to_file failed")
 
-        global num_wp
         self.progress("test: Fly a mission from 1 to %u" % num_wp)
         self.mavproxy.send('wp set 1\n')
         self.change_mode('AUTO')
@@ -409,11 +405,7 @@ class AutoTestCopter(AutoTest):
 
             self.reboot_sitl()
 
-            global num_wp
-            num_wp = self.load_mission("copter_loiter_to_alt.txt")
-            if not num_wp:
-                self.progress("load copter_loiter_to_target failed")
-                raise NotAchievedException()
+            self.load_mission("copter_loiter_to_alt.txt")
 
             self.mavproxy.send('switch 5\n')
             self.wait_mode('LOITER')
@@ -609,9 +601,14 @@ class AutoTestCopter(AutoTest):
         tstart = self.get_sim_time()
         while self.get_sim_time() < tstart + timeout:
             m = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
+<<<<<<< HEAD
             alt = m.relative_alt / 1000.0  # mm -> m
             pos = self.mav.location()
             home_distance = self.get_distance(HOME, pos)
+=======
+            alt = m.relative_alt / 1000.0 # mm -> m
+            home_distance = self.distance_to_home()
+>>>>>>> c0394e9577eea45bb28fb2dacf6d67ddc4d06e52
             self.progress("Alt: %.02f  HomeDistance: %.02f" %
                           (alt, home_distance))
             # recenter pitch sticks once we're home so we don't fly off again
@@ -820,7 +817,6 @@ class AutoTestCopter(AutoTest):
         # Fly mission #1
         self.progress("# Load copter_glitch_mission")
         # load the waypoint count
-        global num_wp
         num_wp = self.load_mission("copter_glitch_mission.txt")
         if not num_wp:
             raise NotAchievedException("load copter_glitch_mission failed")
@@ -885,18 +881,14 @@ class AutoTestCopter(AutoTest):
 
         # wait for arrival back home
         self.mav.recv_match(type='VFR_HUD', blocking=True)
-        pos = self.mav.location()
-        dist_to_home = self.get_distance(HOME, pos)
-        while dist_to_home > 5:
+        while self.distance_to_home() > 5:
             if self.get_sim_time() > (tstart + timeout):
                 raise AutoTestTimeoutException(
                     ("GPS Glitch testing failed"
                      "- exceeded timeout %u seconds" % timeout))
 
             self.mav.recv_match(type='VFR_HUD', blocking=True)
-            pos = self.mav.location()
-            dist_to_home = self.get_distance(HOME, pos)
-            self.progress("Dist from home: %.02f" % dist_to_home)
+            self.progress("Dist from home: %.02f" % self.distance_to_home())
 
         # turn off simulator display of gps and actual position
         if self.use_map:
@@ -1191,7 +1183,6 @@ class AutoTestCopter(AutoTest):
         # Fly mission #1
         self.progress("# Load copter_mission")
         # load the waypoint count
-        global num_wp
         num_wp = self.load_mission("copter_mission.txt")
         if not num_wp:
             raise NotAchievedException("load copter_mission failed")
@@ -1233,7 +1224,6 @@ class AutoTestCopter(AutoTest):
         # upload mission from file
         self.progress("# Load copter_AVC2013_mission")
         # load the waypoint count
-        global num_wp
         num_wp = self.load_mission("copter_AVC2013_mission.txt")
         if not num_wp:
             raise NotAchievedException("load copter_AVC2013_mission failed")
@@ -1649,6 +1639,29 @@ class AutoTestCopter(AutoTest):
         self.set_parameter("SIM_PARA_ENABLE", 1)
         self.set_parameter("SIM_PARA_PIN", 9)
 
+        self.progress("Test triggering parachute in mission")
+        self.load_mission("copter_parachute_mission.txt")
+        self.change_mode('LOITER')
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.change_mode('AUTO')
+        self.set_rc(3, 1600)
+        self.mavproxy.expect('BANG')
+        self.reboot_sitl()
+
+        self.progress("Test triggering with mavlink message")
+        self.takeoff(20)
+        self.run_cmd(mavutil.mavlink.MAV_CMD_DO_PARACHUTE,
+                     2, # release
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0)
+        self.mavproxy.expect('BANG')
+        self.reboot_sitl()
+
         self.progress("Testing three-position switch")
         self.set_parameter("RC9_OPTION", 23)  # parachute 3pos
 
@@ -1937,8 +1950,7 @@ class AutoTestCopter(AutoTest):
 
     def fly_nav_takeoff_delay_abstime(self):
         """make sure taking off at a specific time works"""
-        global num_wp
-        num_wp = self.load_mission("copter_nav_delay_takeoff.txt")
+        self.load_mission("copter_nav_delay_takeoff.txt")
 
         self.progress("Starting mission")
 
@@ -2165,11 +2177,7 @@ class AutoTestCopter(AutoTest):
             self.reboot_sitl()
             self.set_rc(9, 2000)
             # load the mission:
-            global num_wp
-            num_wp = self.load_mission("copter_payload_place.txt")
-            if not num_wp:
-                self.progress("load copter_mission failed")
-                raise NotAchievedException()
+            self.load_mission("copter_payload_place.txt")
 
             self.progress("Waiting for location")
             self.mav.location()
@@ -2829,11 +2837,10 @@ class AutoTestHeli(AutoTestCopter):
         super(AutoTestHeli, self).__init__(*args, **kwargs)
 
         self.log_name = "HeliCopter"
-        self.home = "%f,%f,%u,%u" % (AVCHOME.lat,
-                                     AVCHOME.lng,
-                                     AVCHOME.alt,
-                                     AVCHOME.heading)
         self.frame = 'heli'
+
+    def sitl_start_location(self):
+        return SITL_START_LOCATION_AVC
 
     def is_heli(self):
         return True

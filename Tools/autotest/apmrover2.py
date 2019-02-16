@@ -21,11 +21,10 @@ from pymavlink import mavutil
 # get location of scripts
 testdir = os.path.dirname(os.path.realpath(__file__))
 
-# HOME = mavutil.location(-35.362938, 149.165085, 584, 270)
-HOME = mavutil.location(40.071374969556928,
-                        -105.22978898137808,
-                        1583.702759,
-                        246)
+SITL_START_LOCATION = mavutil.location(40.071374969556928,
+                                       -105.22978898137808,
+                                       1583.702759,
+                                       246)
 
 
 class AutoTestRover(AutoTest):
@@ -48,16 +47,14 @@ class AutoTestRover(AutoTest):
         self.gdbserver = gdbserver
         self.breakpoints = breakpoints
 
-        self.home = "%f,%f,%u,%u" % (HOME.lat,
-                                     HOME.lng,
-                                     HOME.alt,
-                                     HOME.heading)
-        self.homeloc = None
         self.speedup = speedup
 
         self.sitl = None
 
         self.log_name = "APMrover2"
+
+    def sitl_start_location(self):
+        return SITL_START_LOCATION
 
     def init(self):
         if self.frame is None:
@@ -67,7 +64,7 @@ class AutoTestRover(AutoTest):
 
         self.sitl = util.start_SITL(self.binary,
                                     model=self.frame,
-                                    home=self.home,
+                                    home=self.sitl_home(),
                                     speedup=self.speedup,
                                     valgrind=self.valgrind,
                                     gdb=self.gdb,
@@ -119,13 +116,13 @@ class AutoTestRover(AutoTest):
             self.set_parameter("RC7_OPTION", 7)
             self.set_parameter("RC8_OPTION", 58)
 
-            self.clear_wp()
-
             self.mavproxy.send('switch 5\n')
             self.wait_mode('MANUAL')
 
             self.wait_ready_to_arm()
             self.arm_vehicle()
+
+            self.clear_wp()
 
             # first aim north
             self.progress("\nTurn right towards north")
@@ -171,8 +168,10 @@ class AutoTestRover(AutoTest):
             self.progress("Checking number of saved waypoints")
             num_wp = self.save_mission_to_file(
                 os.path.join(testdir, "rover-ch7_mission.txt"))
-            if num_wp != 6:
-                raise NotAchievedException("Did not get 6 waypoints")
+            expected = 7 # home + 6 toggled in
+            if num_wp != expected:
+                raise NotAchievedException("Did not get %u waypoints; got %u" %
+                                           (expected, num_wp))
 
             # TODO: actually drive the mission
 
@@ -472,8 +471,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
 
         self.wait_mode('HOLD', timeout=600) # balancebot can take a long time!
 
-        pos = self.mav.location()
-        home_distance = self.get_distance(HOME, pos)
+        home_distance = self.distance_to_home()
         home_distance_max = 5
         if home_distance > home_distance_max:
             raise NotAchievedException(
@@ -490,9 +488,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
         tstart = self.get_sim_time()
         while self.get_sim_time() - tstart < timeout:
             # m = self.mav.recv_match(type='VFR_HUD', blocking=True)
-            pos = self.mav.location()
-            home_distance = self.get_distance(HOME, pos)
-            if home_distance > distance:
+            if self.distance_to_home() > distance:
                 return
         raise NotAchievedException("Failed to get %fm from home (now=%f)" %
                                    (distance, home_distance))
@@ -881,7 +877,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
                 self.arm_vehicle(timeout=5)
                 self.disarm_vehicle()
                 success = False
-            except NotAchievedException as e:
+            except AutoTestTimeoutException as e:
                 success = True
                 pass
             self.mav.srcSystem = old_srcSystem

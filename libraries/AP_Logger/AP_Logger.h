@@ -123,8 +123,8 @@ public:
     AP_Logger &operator=(const AP_Logger&) = delete;
 
     // get singleton instance
-    static AP_Logger *instance(void) {
-        return _instance;
+    static AP_Logger *get_singleton(void) {
+        return _singleton;
     }
 
     // initialisation
@@ -207,7 +207,9 @@ public:
                         const AP_Motors &motors,
                         const AC_AttitudeControl &attitude_control,
                         const AC_PosControl &pos_control);
-    void Write_Rally();
+    void Write_RallyPoint(uint8_t total,
+                          uint8_t sequence,
+                          const RallyLocation &rally_point);
     void Write_VisualOdom(float time_delta, const Vector3f &angle_delta, const Vector3f &position_delta, float confidence);
     void Write_AOA_SSA(AP_AHRS &ahrs);
     void Write_Beacon(AP_Beacon &beacon);
@@ -376,7 +378,7 @@ private:
 
     void backend_starting_new_log(const AP_Logger_Backend *backend);
 
-    static AP_Logger *_instance;
+    static AP_Logger *_singleton;
 
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     bool validate_structure(const struct LogStructure *logstructure, int16_t offset);

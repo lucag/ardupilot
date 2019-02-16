@@ -386,10 +386,6 @@ private:
     MOTOR_CLASS *motors;
     const struct AP_Param::GroupInfo *motors_var_info;
 
-    // GPS variables
-    // Sometimes we need to remove the scaling for distance calcs
-    float scaleLongDown;
-
     int32_t _home_bearing;
     uint32_t _home_distance;
 
@@ -412,10 +408,10 @@ private:
 
 #if FRSKY_TELEM_ENABLED == ENABLED
     // FrSky telemetry support
-    AP_Frsky_Telem frsky_telemetry{ahrs, battery, rangefinder};
+    AP_Frsky_Telem frsky_telemetry;
 #endif
 #if DEVO_TELEM_ENABLED == ENABLED
-    AP_DEVO_Telem devo_telemetry{ahrs};
+    AP_DEVO_Telem devo_telemetry;
 #endif
 
 #if OSD_ENABLED == ENABLED
@@ -553,11 +549,6 @@ private:
     // last esc calibration notification update
     uint32_t esc_calibration_notify_update_ms;
 
-#if VISUAL_ODOMETRY_ENABLED == ENABLED
-    // last visual odometry update time
-    uint32_t visual_odom_last_update_ms;
-#endif
-
     // Top-level logic
     // setup the var_info table
     AP_Param param_loader;
@@ -673,8 +664,8 @@ private:
     // commands.cpp
     void update_home_from_EKF();
     void set_home_to_current_location_inflight();
-    bool set_home_to_current_location(bool lock);
-    bool set_home(const Location& loc, bool lock);
+    bool set_home_to_current_location(bool lock) WARN_IF_UNUSED;
+    bool set_home(const Location& loc, bool lock) WARN_IF_UNUSED;
     bool far_from_EKF_origin(const Location& loc);
 
     // compassmot.cpp
@@ -841,7 +832,6 @@ private:
     void update_proximity();
     void update_sensor_status_flags(void);
     void init_visual_odom();
-    void update_visual_odom();
     void winch_init();
     void winch_update();
 

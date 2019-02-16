@@ -107,6 +107,10 @@ Parameters.rst
 Parameters.wiki
 apm.pdef.xml
 parameters.edn
+# JetBrains IDE files
+.idea/*
+# CMake
+cmake-build-*/
 
 .pydevproject
 .idea/

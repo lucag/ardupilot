@@ -16,7 +16,6 @@ protected:
 
     MAV_RESULT handle_flight_termination(const mavlink_command_long_t &packet) override;
     AP_AdvancedFailsafe *get_advanced_failsafe() const override;
-    AP_VisualOdom *get_visual_odom() const override;
 
     uint8_t sysid_my_gcs() const override;
     bool sysid_enforce() const override;
@@ -37,6 +36,9 @@ protected:
     MAV_RESULT handle_command_long_packet(const mavlink_command_long_t &packet) override;
 
     void handle_mount_message(const mavlink_message_t* msg) override;
+
+    bool set_home_to_current_location(bool lock) override WARN_IF_UNUSED;
+    bool set_home(const Location& loc, bool lock) override WARN_IF_UNUSED;
 
 private:
 

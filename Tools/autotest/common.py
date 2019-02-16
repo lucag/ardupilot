@@ -11,6 +11,7 @@ import time
 import traceback
 import pexpect
 import fnmatch
+import operator
 
 from pymavlink import mavwp, mavutil
 from pysim import util, vehicleinfo
@@ -154,7 +155,8 @@ class AutoTest(ABC):
     """
     def __init__(self,
                  viewerip=None,
-                 use_map=False):
+                 use_map=False,
+                 _show_test_timings=False):
         self.mavproxy = None
         self.mav = None
         self.viewerip = viewerip
@@ -169,6 +171,8 @@ class AutoTest(ABC):
         self.forced_post_test_sitl_reboots = 0
         self.skip_list = []
         self.run_tests_called = False
+        self._show_test_timings = _show_test_timings
+        self.test_timings = dict()
 
     @staticmethod
     def progress(text):
@@ -179,6 +183,13 @@ class AutoTest(ABC):
     @staticmethod
     def buildlogs_dirpath():
         return os.getenv("BUILDLOGS", util.reltopdir("../buildlogs"))
+
+    def sitl_home(self):
+        HOME = self.sitl_start_location()
+        return "%f,%f,%u,%u" % (HOME.lat,
+                                HOME.lng,
+                                HOME.alt,
+                                HOME.heading)
 
     def open_mavproxy_logfile(self):
         return MAVProxyLogFile()
@@ -258,7 +269,7 @@ class AutoTest(ABC):
 
     def reboot_sitl(self):
         """Reboot SITL instance and wait it to reconnect."""
-        old_bootcount= self.get_parameter('STAT_BOOTCNT')
+        old_bootcount = self.get_parameter('STAT_BOOTCNT')
         self.mavproxy.send("reboot\n")
         tstart = time.time()
         while True:
@@ -480,8 +491,7 @@ class AutoTest(ABC):
         """Load a mission from a file and return number of waypoints."""
         wploader = mavwp.MAVWPLoader()
         wploader.load(filename)
-        num_wp = wploader.count()
-        return num_wp
+        return wploader.count()
 
     def mission_directory(self):
         return testdir
@@ -605,10 +615,14 @@ class AutoTest(ABC):
         if status_have != save_count:
             raise ValueError("status have not equal to save count")
 
-        # update num_wp
         wploader = mavwp.MAVWPLoader()
         wploader.load(path)
         num_wp = wploader.count()
+        if num_wp != int(status_have):
+            raise ValueError("num_wp=%u != status_have=%u" %
+            (num_wp, int(status_have)))
+        if num_wp == 0:
+            raise ValueError("No waypoints loaded?!")
         return num_wp
 
     def save_mission_to_file(self, filename):
@@ -970,7 +984,7 @@ class AutoTest(ABC):
         tstart = self.get_sim_time_cached()
         while True:
             if self.get_sim_time_cached() - tstart > timeout:
-                raise NotAchievedException("Did not get good COMMAND_ACK")
+                raise AutoTestTimeoutException("Did not get good COMMAND_ACK")
             m = self.mav.recv_match(type='COMMAND_ACK',
                                     blocking=True,
                                     timeout=1)
@@ -1301,21 +1315,44 @@ class AutoTest(ABC):
                                           % (delta, distance))
         raise WaitDistanceTimeout("Failed to attain distance %u" % distance)
 
-    def wait_servo_channel_value(self, channel, value, timeout=2):
-        """wait for channel to hit value"""
+    def wait_servo_channel_value(self, channel, value, timeout=2, comparator=operator.eq):
+        """wait for channel value comparison (default condition is equality)"""
         channel_field = "servo%u_raw" % channel
+        opstring = ("%s" % comparator)[-3:-1]
         tstart = self.get_sim_time()
         while True:
             remaining = timeout - (self.get_sim_time_cached() - tstart)
             if remaining <= 0:
-                raise NotAchievedException("Channel never achieved value")
+                raise NotAchievedException("Channel value condition not met")
             m = self.mav.recv_match(type='SERVO_OUTPUT_RAW',
                                     blocking=True,
                                     timeout=remaining)
             if m is None:
                 continue
             m_value = getattr(m, channel_field, None)
-            self.progress("SERVO_OUTPUT_RAW.%s=%u want=%u" %
+            self.progress("want SERVO_OUTPUT_RAW.%s=%u %s %u" %
+                          (channel_field, m_value, opstring, value))
+            if m_value is None:
+                raise ValueError("message (%s) has no field %s" %
+                                 (str(m), channel_field))
+            if comparator(m_value, value):
+                return
+
+    def wait_rc_channel_value(self, channel, value, timeout=2):
+        """wait for channel to hit value"""
+        channel_field = "chan%u_raw" % channel
+        tstart = self.get_sim_time()
+        while True:
+            remaining = timeout - (self.get_sim_time_cached() - tstart)
+            if remaining <= 0:
+                raise NotAchievedException("Channel never achieved value")
+            m = self.mav.recv_match(type='RC_CHANNELS',
+                                    blocking=True,
+                                    timeout=remaining)
+            if m is None:
+                continue
+            m_value = getattr(m, channel_field)
+            self.progress("RC_CHANNELS.%s=%u want=%u" %
                           (channel_field, m_value, value))
             if m_value is None:
                 raise ValueError("message (%s) has no field %s" %
@@ -1436,7 +1473,7 @@ class AutoTest(ABC):
 
     def wait_ready_to_arm(self, timeout=None, require_absolute=True):
         # wait for EKF checks to pass
-        self.progress("Waiting reading for arm")
+        self.progress("Waiting for ready to arm")
         return self.wait_ekf_happy(timeout=timeout,
                                    require_absolute=require_absolute)
 
@@ -1524,6 +1561,20 @@ class AutoTest(ABC):
             self.forced_post_test_sitl_reboots += 1
             self.reboot_sitl() # that'll learn it
 
+    def show_test_timings_key_sorter(self, t):
+        (k, v) = t
+        return ((v, k))
+
+    def show_test_timings(self):
+        longest = 0
+        for desc in self.test_timings.keys():
+            if len(desc) > longest:
+                longest = len(desc)
+        for desc, time in sorted(self.test_timings.iteritems(),
+                                 key=self.show_test_timings_key_sorter):
+            fmt = "%" + str(longest) + "s: %.2fs"
+            self.progress(fmt % (desc, time))
+
     def run_one_test(self, name, desc, test_function, interact=False):
         '''new-style run-one-test used by run_tests'''
         test_output_filename = self.buildlogs_path("%s-%s.txt" %
@@ -1535,11 +1586,14 @@ class AutoTest(ABC):
 
         self.context_push()
 
+        start_time = time.time()
+
         try:
             self.check_rc_defaults()
             self.change_mode(self.default_mode())
             test_function()
         except Exception as e:
+            self.test_timings[desc] = time.time() - start_time
             self.progress("Exception caught: %s" % traceback.format_exc(e))
             self.context_pop()
             self.progress('FAILED: "%s": %s (see %s)' %
@@ -1552,6 +1606,7 @@ class AutoTest(ABC):
             tee = None
             self.check_sitl_reset()
             return
+        self.test_timings[desc] = time.time() - start_time
         self.context_pop()
         self.progress('PASSED: "%s"' % prettyname)
         tee.close()
@@ -1622,6 +1677,14 @@ class AutoTest(ABC):
             raise NotAchievedException("home position not updated")
         return m
 
+    def distance_to_home(self):
+        m = self.poll_home_position()
+        loc = mavutil.location(m.latitude * 1.0e-7,
+                               m.longitude * 1.0e-7,
+                               m.altitude * 1.0e-3,
+                               0)
+        return self.get_distance(loc, self.mav.location())
+
     def monitor_groundspeed(self, want, tolerance=0.5, timeout=5):
         tstart = self.get_sim_time()
         while True:
@@ -1636,6 +1699,57 @@ class AutoTest(ABC):
                                            (m.groundspeed, want))
             self.progress("GroundSpeed OK (got=%f) (want=%f)" %
                           (m.groundspeed, want))
+
+    def fly_test_set_home(self):
+        self.reboot_sitl()
+
+        # HOME_POSITION is used as a surrogate for origin until we
+        # start emitting GPS_GLOBAL_ORIGIN
+        orig_home = self.poll_home_position()
+        if orig_home is None:
+            raise AutoTestTimeoutException()
+        self.progress("Original home: %s" % str(orig_home))
+        new_x = orig_home.latitude + 1000
+        new_y = orig_home.longitude + 2000
+        new_z = orig_home.altitude + 300000 # 300 metres
+        print("new home: %s %s %s" % (str(new_x), str(new_y), str(new_z)))
+        self.mav.mav.command_int_send(1,
+                                      1,
+                                      mavutil.mavlink.MAV_FRAME_GLOBAL_INT,
+                                      mavutil.mavlink.MAV_CMD_DO_SET_HOME,
+                                      0, # current
+                                      0, # autocontinue
+                                      0, # p1,
+                                      0, # p2,
+                                      0, # p3,
+                                      0, # p4,
+                                      new_x,
+                                      new_y,
+                                      new_z/1000.0) # mm => m
+        self.expect_command_ack(mavutil.mavlink.MAV_CMD_DO_SET_HOME)
+
+        home = self.poll_home_position()
+        self.progress("int-set home: %s" % str(home))
+        if (home.latitude != new_x or
+            home.longitude != new_y or
+            home.altitude != new_z):
+            self.reboot_sitl()
+            raise NotAchievedException(
+                "(%f, %f, %f) != (%f, %f, %f)" %
+                (home.latitude, home.longitude, home.altitude),
+                (new_x, new_y, new_z))
+
+        # watch it for a little while to ensure it doesn't drift at all:
+        tstart = self.get_sim_time()
+        while self.get_sim_time() - tstart < 10:
+            home = self.poll_home_position()
+            self.progress("int-set home: %s" % str(home))
+            if (home.latitude != new_x or
+                home.longitude != new_y or
+                home.altitude != new_z):
+                self.reboot_sitl()
+                raise NotAchievedException("home is drifting")
+        self.reboot_sitl()
 
     def test_arm_feature(self):
         """Common feature to test."""
@@ -1927,7 +2041,7 @@ class AutoTest(ABC):
         self.set_parameter("RC9_OPTION", 19)
         self.set_rc(9, 1500)
         self.reboot_sitl()
-        self.progress("Waiting reading for arm")
+        self.progress("Waiting for ready to arm")
         self.wait_ready_to_arm()
         self.progress("Test gripper with RC9_OPTION")
         self.progress("Releasing load")
@@ -2100,9 +2214,15 @@ switch value'''
         return {}
 
     def tests(self):
-        return []
+        return [
+            ("SetHome",
+            "Test Set Home",
+             self.fly_test_set_home),
+        ]
 
     def post_tests_announcements(self):
+        if self._show_test_timings:
+            self.show_test_timings()
         if self.forced_post_test_sitl_reboots != 0:
             print("Had to force-reset SITL %u times" %
                   (self.forced_post_test_sitl_reboots,))

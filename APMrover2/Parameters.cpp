@@ -684,7 +684,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Param: MIS_DONE_BEHAVE
     // @DisplayName: Mission done behave
     // @Description: Mode to become after mission done
-    // @Values: 0:Hold,1:Loiter
+    // @Values: 0:Hold,1:Loiter, 2:Acro
     // @User: Standard
     AP_GROUPINFO("MIS_DONE_BEHAVE", 38, ParametersG2, mis_done_behave, 0),
 
@@ -693,6 +693,15 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: ../libraries/AP_Gripper/AP_Gripper.cpp
     AP_SUBGROUPINFO(gripper, "GRIP_", 39, ParametersG2, AP_Gripper),
 #endif
+
+    // @Param: BAL_PITCH_TRIM
+    // @DisplayName: Balance Bot pitch trim angle
+    // @Description: Balance Bot pitch trim for balancing. This offsets the tilt of the center of mass.
+    // @Units: deg
+    // @Range: -2 2
+    // @Increment: 0.1
+    // @User: Standard
+    AP_GROUPINFO("BAL_PITCH_TRIM", 40, ParametersG2, bal_pitch_trim, 0),
 
     AP_GROUPEND
 };
