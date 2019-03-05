@@ -196,13 +196,17 @@ private:
     void control_stabilize(void);
 
     void check_attitude_relax(void);
+    void init_qacro(void);
+    void control_qacro(void);
     void init_hover(void);
     void control_hover(void);
 
     void init_loiter(void);
-    void init_land(void);
+    void init_qland(void);
     void control_loiter(void);
     void check_land_complete(void);
+    bool land_detector(uint32_t timeout_ms);
+    bool check_land_final(void);
 
     void init_qrtl(void);
     void control_qrtl(void);
@@ -223,7 +227,7 @@ private:
     void guided_start(void);
     void guided_update(void);
 
-    void check_throttle_suppression(void);
+    void update_throttle_suppression(void);
 
     void run_z_controller(void);
 

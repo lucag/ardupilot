@@ -53,6 +53,7 @@ class AutoTestPlane(AutoTest):
         return SITL_START_LOCATION
 
     def init(self):
+        super(AutoTestPlane, self).init(os.path.realpath(__file__))
         if self.frame is None:
             self.frame = 'plane-elevrev'
 
@@ -119,12 +120,12 @@ class AutoTestPlane(AutoTest):
 
         # get it moving a bit first
         self.set_rc(3, 1300)
-        self.mav.recv_match(condition='VFR_HUD.groundspeed>6', blocking=True)
+        self.wait_groundspeed(6, 100)
 
         # a bit faster again, straighten rudder
         self.set_rc(3, 1600)
         self.set_rc(4, 1500)
-        self.mav.recv_match(condition='VFR_HUD.groundspeed>12', blocking=True)
+        self.wait_groundspeed(12, 100)
 
         # hit the gas harder now, and give it some more elevator
         self.set_rc(2, 1100)
@@ -869,6 +870,10 @@ class AutoTestPlane(AutoTest):
     def default_mode(self):
         return "MANUAL"
 
+    def test_pid_tuning(self):
+        self.change_mode("FBWA") # we don't update PIDs in MANUAL
+        super(AutoTestPlane, self).test_pid_tuning()
+
     def tests(self):
         '''return list of all tests'''
         ret = super(AutoTestPlane, self).tests()
@@ -886,8 +891,6 @@ class AutoTestPlane(AutoTest):
 
             ("TestFlaps", "Flaps", self.fly_flaps),
 
-            ("ArmFeatures", "Arm features", self.test_arm_feature),
-
             ("MainFlight",
              "Lots of things in one flight",
              self.test_main_flight),
@@ -902,6 +905,7 @@ class AutoTestPlane(AutoTest):
              "Log download",
              lambda: self.log_download(
                  self.buildlogs_path("ArduPlane-log.bin"),
+                 timeout=450,
                  upload_logs=True))
         ])
         return ret
