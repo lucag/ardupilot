@@ -449,10 +449,10 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
 
         mission_filepath = os.path.join("ArduRover-Missions", "rtl.txt")
         self.load_mission(mission_filepath)
-        self.mavproxy.send('switch 4\n')  # auto mode
-        self.set_rc(3, 1500)
-        self.wait_mode('AUTO')
+        self.change_mode("AUTO")
         self.mavproxy.expect('Executing RTL')
+
+        self.drain_mav();
 
         m = self.mav.recv_match(type='NAV_CONTROLLER_OUTPUT',
                                 blocking=True,
@@ -470,18 +470,29 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
         self.progress("NAV_CONTROLLER_OUTPUT.wp_dist looks good (%u >= %u)" %
                       (m.wp_dist, wp_dist_min,))
 
-        self.wait_mode('HOLD', timeout=600) # balancebot can take a long time!
+        tstart = self.get_sim_time()
+        while True:
+            if self.get_sim_time_cached() - tstart > 600:
+                raise NotAchievedException("Did not get home")
+            self.progress("Distance home: %f (mode=%s)" %
+                          (self.distance_to_home(), self.mav.flightmode))
+            if self.mode_is('HOLD'):
+                break
 
+        # the EKF doesn't pull us down to 0 speed:
+        self.wait_groundspeed(0, 0.5, timeout=600)
+
+        # current Rover blows straight past the home position and ends
+        # up ~6m past the home point.
         home_distance = self.distance_to_home()
-        home_distance_max = 5
+        home_distance_min = 5.5
+        home_distance_max = 6.5
         if home_distance > home_distance_max:
             raise NotAchievedException(
-                "Did not get home (%f metres distant > %f)" %
-                (home_distance, home_distance_max))
-        self.mavproxy.send('switch 6\n')
-        self.wait_mode('MANUAL')
+                "Did not stop near home (%f metres distant (%f > want > %f))" %
+                (home_distance, home_distance_min, home_distance_max))
         self.disarm_vehicle()
-        self.progress("RTL Mission OK")
+        self.progress("RTL Mission OK (%fm)" % home_distance)
 
 
     def wait_distance_home_gt(self, distance, timeout=60):

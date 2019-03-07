@@ -277,8 +277,8 @@ const AP_Param::GroupInfo QuadPlane::var_info[] = {
         
     // @Param: TAILSIT_INPUT
     // @DisplayName: Tailsitter input type
-    // @Description: This controls whether stick input when hovering as a tailsitter follows the conventions for fixed wing hovering or multicopter hovering. When multicopter input is selected the roll stick will roll the aircraft in earth frame and yaw stick will yaw in earth frame. When using fixed wing input the roll and yaw sticks will control the aircraft in body frame.
-    // @Values: 0:MultiCopterInput,1:FixedWingInput
+    // @Description: This controls whether stick input when hovering as a tailsitter follows the conventions for fixed wing hovering or multicopter hovering. When multicopter input is selected the roll stick will roll the aircraft in earth frame and yaw stick will yaw in earth frame. When using fixed wing input the roll and yaw sticks are swapped so that the roll stick controls earth-frame yaw and rudder controls earth-frame roll. When body-frame roll is selected, the yaw stick controls earth-frame yaw rate and the roll stick controls roll in the tailsitter's body frame.
+    // @Values: 0:MultiCopterInput,1:FixedWingInput,2:BodyFrameRoll
     AP_GROUPINFO("TAILSIT_INPUT", 50, QuadPlane, tailsitter.input_type, TAILSITTER_INPUT_MULTICOPTER),
 
     // @Param: TAILSIT_MASK
@@ -401,6 +401,13 @@ const AP_Param::GroupInfo QuadPlane::var_info2[] = {
     // @Increment: 1
     // @User: Advanced
     AP_GROUPINFO("TRANS_FAIL", 8, QuadPlane, transition_failure, 0),
+
+    // @Param: TAILSIT_MOTMX
+    // @DisplayName: Tailsiter mask
+    // @Description: Bitmask of motors to remain active in forward flight for a 'copter' tailsitter. Non-zero indicates airframe is a tailsitter which pitches forward 90 degrees in forward flight modes.
+    // @User: Standard
+    // @Bitmask: 0:Motor 1,1:Motor 2,2:Motor 3,3:Motor 4, 4:Motor 5,5:Motor 6,6:Motor 7,7:Motor 8
+    AP_GROUPINFO("TAILSIT_MOTMX", 9, QuadPlane, tailsitter.motor_mask, 0),
 
     AP_GROUPEND
 };
@@ -563,21 +570,36 @@ bool QuadPlane::setup(void)
         break;
     }
 
-    switch (motor_class) {
-    case AP_Motors::MOTOR_FRAME_TRI:
-        motors = new AP_MotorsTri(plane.scheduler.get_loop_rate_hz(), rc_speed);
-        motors_var_info = AP_MotorsTri::var_info;
-        break;
-    case AP_Motors::MOTOR_FRAME_TAILSITTER:
-        motors = new AP_MotorsTailsitter(plane.scheduler.get_loop_rate_hz(), rc_speed);
-        motors_var_info = AP_MotorsTailsitter::var_info;
+    if (tailsitter.motor_mask == 0) {
+        // this is a normal quadplane
+        switch (motor_class) {
+        case AP_Motors::MOTOR_FRAME_TRI:
+            motors = new AP_MotorsTri(plane.scheduler.get_loop_rate_hz(), rc_speed);
+            motors_var_info = AP_MotorsTri::var_info;
+            break;
+        case AP_Motors::MOTOR_FRAME_TAILSITTER:
+            // this is a duo-motor tailsitter (vectored thrust if tilt.tilt_mask != 0)
+            motors = new AP_MotorsTailsitter(plane.scheduler.get_loop_rate_hz(), rc_speed);
+            motors_var_info = AP_MotorsTailsitter::var_info;
+            rotation = ROTATION_PITCH_90;
+            break;
+        default:
+            motors = new AP_MotorsMatrix(plane.scheduler.get_loop_rate_hz(), rc_speed);
+            motors_var_info = AP_MotorsMatrix::var_info;
+            break;
+        }
+    } else {
+        // this is a copter tailsitter with motor layout specified by frame_class and frame_type
+        // tilting motors are not supported (tiltrotor control variables are ignored)
+        if (tilt.tilt_mask != 0) {
+            hal.console->printf("Warning tilting motors not supported, setting tilt_mask to zero\n");
+            tilt.tilt_mask.set(0);
+        }
         rotation = ROTATION_PITCH_90;
-        break;
-    default:
-        motors = new AP_MotorsMatrix(plane.scheduler.get_loop_rate_hz(), rc_speed);
-        motors_var_info = AP_MotorsMatrix::var_info;
-        break;
+        motors = new AP_MotorsMatrixTS(plane.scheduler.get_loop_rate_hz(), rc_speed);
+        motors_var_info = AP_MotorsMatrixTS::var_info;
     }
+    
     const static char *strUnableToAllocate = "Unable to allocate";
     if (!motors) {
         hal.console->printf("%s motors\n", strUnableToAllocate);
@@ -644,7 +666,7 @@ bool QuadPlane::setup(void)
     setup_defaults();
 
     AP_Param::convert_old_parameters(&q_conversion_table[0], ARRAY_SIZE(q_conversion_table));
-    
+
     gcs().send_text(MAV_SEVERITY_INFO, "QuadPlane initialised");
     initialised = true;
     return true;
@@ -716,10 +738,21 @@ void QuadPlane::multicopter_attitude_rate_update(float yaw_rate_cds)
     check_attitude_relax();
 
     if (in_vtol_mode() || is_tailsitter()) {
-        // use euler angle attitude control
-        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
-                                                                      plane.nav_pitch_cd,
-                                                                      yaw_rate_cds);
+        if (tailsitter.input_type == TAILSITTER_INPUT_BF_ROLL) {
+            // Angle mode attitude control for pitch and body-frame roll, rate control for yaw.
+            // this version interprets the first argument as yaw rate and the third as roll angle
+            // because it is intended to be used with Q_TAILSIT_INPUT=1 where the roll and yaw sticks
+            // act in the tailsitter's body frame (i.e. roll is MC/earth frame yaw and
+            // yaw is MC/earth frame roll)
+            attitude_control->input_euler_rate_yaw_euler_angle_pitch_bf_roll(plane.nav_roll_cd,
+                                                                             plane.nav_pitch_cd,
+                                                                             yaw_rate_cds);
+        } else {
+            // use euler angle attitude control
+            attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(plane.nav_roll_cd,
+                                                                          plane.nav_pitch_cd,
+                                                                          yaw_rate_cds);
+        }
     } else {
         // use the fixed wing desired rates
         float roll_rate = plane.rollController.get_pid_info().desired;

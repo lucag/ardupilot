@@ -158,7 +158,6 @@ class AutoTestCopter(AutoTest):
         self.progress("TAKEOFF")
         self.change_mode(mode)
         if not self.armed():
-            self.progress("Waiting reading for arm")
             self.wait_ready_to_arm(require_absolute=require_absolute)
             self.zero_throttle()
             self.arm_vehicle()
@@ -234,6 +233,28 @@ class AutoTestCopter(AutoTest):
         self.progress("Descend to 20m")
         self.change_alt(20)
 
+        self.do_RTL()
+
+    def watch_altitude_maintained(self, min_alt, max_alt, timeout=10):
+        '''watch alt, relative alt must remain between min_alt and max_alt'''
+        tstart = self.get_sim_time_cached()
+        while True:
+            if self.get_sim_time_cached() - tstart > timeout:
+                return
+            m = self.mav.recv_match(type='VFR_HUD', blocking=True)
+            if m.alt <= min_alt:
+                raise NotAchievedException("Altitude not maintained: want >%f got=%f" % (min_alt, m.alt))
+
+    def test_mode_ALT_HOLD(self):
+        self.takeoff(10, mode="ALT_HOLD")
+        self.watch_altitude_maintained(9, 11, timeout=5)
+        # feed in full elevator and aileron input and make sure we
+        # retain altitude:
+        self.set_rc(1, 1000)
+        self.set_rc(2, 1000)
+        self.watch_altitude_maintained(9, 11, timeout=5)
+        self.set_rc(1, 1500)
+        self.set_rc(2, 1500)
         self.do_RTL()
 
     def change_alt(self, alt_min, climb_throttle=1920, descend_throttle=1080):
@@ -1370,7 +1391,6 @@ class AutoTestCopter(AutoTest):
         self.mavproxy.send('switch 6\n')  # stabilize mode
         self.wait_heartbeat()
         self.wait_mode('STABILIZE')
-        self.progress("Waiting reading for arm")
         self.wait_ready_to_arm()
 
         old_pos = self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
@@ -1485,7 +1505,6 @@ class AutoTestCopter(AutoTest):
         self.mavproxy.send('mode loiter\n')
         self.wait_heartbeat()
         self.wait_mode('LOITER')
-        self.progress("Waiting reading for arm")
         self.wait_ready_to_arm()
 
         self.context_push()
@@ -1732,9 +1751,9 @@ class AutoTestCopter(AutoTest):
             self.mav.recv_match(type='GLOBAL_POSITION_INT', blocking=True)
             new_pos = self.mav.location()
             delta = self.get_distance(old_pos, new_pos)
-            if delta > 1:
-                raise NotAchievedException()
             self.progress("Landed %u metres from original position" % delta)
+            if delta > 1:
+                raise NotAchievedException("Did not land close enough to original position")
 
         except Exception as e:
             self.progress("Exception caught")
@@ -1899,7 +1918,6 @@ class AutoTestCopter(AutoTest):
         self.mavproxy.send('mode loiter\n')  # stabilize mode
         self.wait_heartbeat()
         self.wait_mode('LOITER')
-        self.progress("Waiting reading for arm")
         self.wait_ready_to_arm()
 
         delay_item_seq = 3
@@ -1956,7 +1974,6 @@ class AutoTestCopter(AutoTest):
         self.mavproxy.send('mode loiter\n')  # stabilize mode
         self.wait_heartbeat()
         self.wait_mode('LOITER')
-        self.progress("Waiting reading for arm")
         self.wait_ready_to_arm()
 
         delay_item_seq = 2
@@ -2270,7 +2287,6 @@ class AutoTestCopter(AutoTest):
             self.mavproxy.send('switch 6\n')  # stabilize mode
             self.wait_heartbeat()
             self.wait_mode('STABILIZE')
-            self.progress("Waiting reading for arm")
             self.wait_ready_to_arm()
 
             self.arm_vehicle()
@@ -2362,11 +2378,28 @@ class AutoTestCopter(AutoTest):
         if ex is not None:
             raise ex
 
+    def fly_manual_throttle_mode_change(self):
+        self.set_parameter("FS_GCS_ENABLE", 0) # avoid GUIDED instant disarm
+        self.change_mode("STABILIZE")
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.change_mode("ACRO")
+        self.change_mode("STABILIZE")
+        self.change_mode("GUIDED")
+        self.set_rc(3, 1700)
+        self.watch_altitude_maintained(-1, 0.2) # should not take off in guided
+        self.run_cmd_do_set_mode(
+            "ACRO",
+            want_result=mavutil.mavlink.MAV_RESULT_UNSUPPORTED) # should fix this result code!
+        self.set_rc(3, 1000)
+        self.run_cmd_do_set_mode("ACRO")
+        self.mav.motors_disarmed_wait()
+
     def test_mount_pitch(self, despitch, despitch_tolerance, timeout=5):
         tstart = self.get_sim_time()
         while True:
             if self.get_sim_time() - tstart > timeout:
-                raise NotAchievedException()
+                raise NotAchievedException("Mount pitch not achieved")
 
             m = self.mav.recv_match(type='MOUNT_STATUS',
                                     blocking=True,
@@ -2427,8 +2460,7 @@ class AutoTestCopter(AutoTest):
                                     blocking=True,
                                     timeout=5)
             if m.pointing_a != 0 or m.pointing_b != 0 or m.pointing_c != 0:
-                self.progress("Stabilising when not requested")
-                raise NotAchievedException()
+                raise NotAchievedException("Mount stabilising when not requested")
 
             self.mavproxy.send('mode guided\n')
             self.wait_mode('GUIDED')
@@ -2450,8 +2482,7 @@ class AutoTestCopter(AutoTest):
                                     blocking=True,
                                     timeout=5)
             if m.pointing_a != 0 or m.pointing_b != 0 or m.pointing_c != 0:
-                self.progress("Stabilising when not requested")
-                raise NotAchievedException()
+                raise NotAchievedException("Mount stabilising when not requested")
 
             self.progress("Enable pitch stabilization using MOUNT_CONFIGURE")
             self.do_pitch(despitch)
@@ -2710,7 +2741,6 @@ class AutoTestCopter(AutoTest):
             self.mavproxy.send('switch 6\n')  # stabilize mode
             self.wait_heartbeat()
             self.wait_mode('STABILIZE')
-            self.progress("Waiting reading for arm")
             self.wait_ready_to_arm()
 
             # we should be doing precision loiter at this point
@@ -2765,6 +2795,33 @@ class AutoTestCopter(AutoTest):
         self.reboot_sitl()
 
         super(AutoTestCopter, self).test_arm_feature()
+
+    def test_parameter_checks(self):
+        self.wait_ready_to_arm()
+        self.context_push()
+        self.set_parameter("PSC_POSXY_P", -1)
+        self.run_cmd(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                     1,  # ARM
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     timeout=2,
+                     want_result=mavutil.mavlink.MAV_RESULT_FAILED)
+        self.context_pop()
+        self.run_cmd(mavutil.mavlink.MAV_CMD_COMPONENT_ARM_DISARM,
+                     1,  # ARM
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     timeout=2,
+                     want_result=mavutil.mavlink.MAV_RESULT_ACCEPTED)
+        self.disarm_vehicle()
 
     def initial_mode(self):
         return "STABILIZE"
@@ -2860,6 +2917,10 @@ class AutoTestCopter(AutoTest):
              "GPS Glitch Auto Test",
              self.fly_gps_glitch_auto_test),
 
+            ("ModeAltHold",
+             "Test AltHold Mode",
+             self.test_mode_ALT_HOLD),
+
             ("ModeLoiter",
              "Test Loiter Mode",
              self.loiter),
@@ -2920,6 +2981,14 @@ class AutoTestCopter(AutoTest):
             ("Parachute",
              "Test Parachute Functionality",
              self.test_parachute),
+
+            ("ParameterChecks",
+             "Test Arming Parameter Checks",
+             self.test_parameter_checks),
+
+            ("ManualThrottleModeChange",
+             "Check manual throttle mode changes denied on high throttle",
+             self.fly_manual_throttle_mode_change),
 
             ("LogDownLoad",
              "Log download",

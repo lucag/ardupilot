@@ -287,26 +287,37 @@ class AutoTest(ABC):
 
         self.initialise_after_reboot_sitl()
 
+    def set_streamrate(self, streamrate):
+        tstart = time.time()
+        while True:
+            if time.time() - tstart > 10:
+                raise AutoTestTimeoutException("stream rate change failed")
+
+            self.mavproxy.send("set streamrate %u\n" % (streamrate))
+            self.mavproxy.send("set streamrate\n")
+            self.mavproxy.expect('.*streamrate ([0-9]+)', timeout=1)
+            rate = self.mavproxy.match.group(1)
+            print("rate: %s" % str(rate))
+            if int(rate) == int(streamrate):
+                break
+
+        if streamrate <= 0:
+            return
+
+        m = self.mav.recv_match(type='SYSTEM_TIME',
+                                blocking=True,
+                                timeout=10)
+        print("Received (%s)" % str(m))
+        if m is None:
+            raise NotAchievedException("Did not get SYSTEM_TIME")
+
     def initialise_after_reboot_sitl(self):
 
         # after reboot stream-rates may be zero.  Prompt MAVProxy to
         # send a rate-change message by changing away from our normal
         # stream rates and back again:
-        tstart = self.get_sim_time()
-        while True:
-
-            self.mavproxy.send("set streamrate %u\n" % (self.sitl_streamrate()+1))
-
-            if self.get_sim_time() - tstart > 10:
-                raise AutoTestTimeoutException("SYSTEM_TIME not received")
-
-            m = self.mav.recv_match(type='SYSTEM_TIME',
-                                    blocking=True,
-                                    timeout=1)
-            if m is not None:
-                print("Received (%s)" % str(m))
-                break
-        self.mavproxy.send("set streamrate %u\n" % self.sitl_streamrate())
+        self.set_streamrate(self.sitl_streamrate()+1)
+        self.set_streamrate(self.sitl_streamrate())
         self.progress("Reboot complete")
 
     def close(self):
@@ -1034,14 +1045,15 @@ class AutoTest(ABC):
     def run_cmd_get_ack(self, command, want_result, timeout):
         tstart = self.get_sim_time_cached()
         while True:
-            if self.get_sim_time_cached() - tstart > timeout:
-                raise AutoTestTimeoutException("Did not get good COMMAND_ACK")
+            delta_time = self.get_sim_time_cached() - tstart
+            if delta_time > timeout:
+                raise AutoTestTimeoutException("Did not get good COMMAND_ACK within %fs" % timeout)
             m = self.mav.recv_match(type='COMMAND_ACK',
                                     blocking=True,
                                     timeout=1)
             if m is None:
                 continue
-            self.progress("ACK received: %s" % str(m))
+            self.progress("ACK received: %s (%fs)" % (str(m), delta_time))
             if m.command == command:
                 if m.result != want_result:
                     raise ValueError("Expected %s got %s" % (want_result,
@@ -1146,30 +1158,40 @@ class AutoTest(ABC):
         self.progress("Available modes '%s'" % mode_map)
         raise ErrorException("Unknown mode '%s'" % mode)
 
-    def do_set_mode_via_command_long(self, mode, timeout=30):
-        """Set mode with a command long message."""
+    def run_cmd_do_set_mode(self,
+                            mode,
+                            timeout=30,
+                            want_result=mavutil.mavlink.MAV_RESULT_ACCEPTED):
         base_mode = mavutil.mavlink.MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
         custom_mode = self.get_mode_from_mode_mapping(mode)
+        self.run_cmd(mavutil.mavlink.MAV_CMD_DO_SET_MODE,
+                     base_mode,
+                     custom_mode,
+                     0,
+                     0,
+                     0,
+                     0,
+                     0,
+                     want_result=want_result,
+                     timeout=timeout
+        )
+
+    def do_set_mode_via_command_long(self, mode, timeout=30):
+        """Set mode with a command long message."""
         tstart = self.get_sim_time()
+        want_custom_mode = self.get_mode_from_mode_mapping(mode)
         while True:
             remaining = timeout - (self.get_sim_time_cached() - tstart)
             if remaining <= 0:
                 raise AutoTestTimeoutException("Failed to change mode")
-            self.run_cmd(mavutil.mavlink.MAV_CMD_DO_SET_MODE,
-                         base_mode,
-                         custom_mode,
-                         0,
-                         0,
-                         0,
-                         0,
-                         0,
-                         )
+            self.run_cmd_do_set_mode(mode, timeout=10)
             m = self.mav.recv_match(type='HEARTBEAT',
                                     blocking=True,
                                     timeout=5)
             if m is None:
                 raise ErrorException("Heartbeat not received")
-            if m.custom_mode == custom_mode:
+            self.progress("Got mode=%u want=%u" % (m.custom_mode, want_custom_mode))
+            if m.custom_mode == want_custom_mode:
                 return
 
     def mavproxy_do_set_mode_via_command_long(self, mode, timeout=30):
@@ -1285,7 +1307,7 @@ class AutoTest(ABC):
         while self.get_sim_time_cached() < tstart + timeout:
             m = self.mav.recv_match(type='VFR_HUD', blocking=True)
             if self.get_sim_time_cached() - last_print > 1:
-                self.progress("Wait groundspeed %.1f, target:%.1f" %
+                self.progress("Wait groundspeed %.3f, target:%.3f" %
                               (m.groundspeed, gs_min))
                 last_print = self.get_sim_time_cached()
             if m.groundspeed >= gs_min and m.groundspeed <= gs_max:
@@ -1498,13 +1520,15 @@ class AutoTest(ABC):
         raise WaitWaypointTimeout("Timed out waiting for waypoint %u of %u" %
                                   (wpnum_end, wpnum_end))
 
+    def mode_is(self, mode):
+        self.wait_heartbeat()
+        return self.get_mode_from_mode_mapping(self.mav.flightmode) == self.get_mode_from_mode_mapping(mode)
+
     def wait_mode(self, mode, timeout=60):
         """Wait for mode to change."""
-        self.get_mode_from_mode_mapping(mode)
         self.progress("Waiting for mode %s" % mode)
         tstart = self.get_sim_time()
-        self.wait_heartbeat()
-        while self.mav.flightmode != mode:
+        while not self.mode_is(mode):
             custom_num = self.mav.messages['HEARTBEAT'].custom_mode
             self.progress("mav.flightmode=%s Want=%s custom=%u" % (
                     self.mav.flightmode, mode, custom_num))
@@ -1580,7 +1604,9 @@ class AutoTest(ABC):
         while self.get_sim_time() < tstart + timeout:
             if the_function is not None:
                 the_function()
-            m = self.mav.recv_match(type='STATUSTEXT', blocking=True)
+            m = self.mav.recv_match(type='STATUSTEXT', blocking=True, timeout=0.1)
+            if m is None:
+                continue
             if text.lower() in m.text.lower():
                 self.progress("Received expected text : %s" % m.text.lower())
                 return True
@@ -1836,8 +1862,12 @@ class AutoTest(ABC):
             if not self.arm_motors_with_rc_input():
                 raise NotAchievedException("Failed to arm with RC input")
             self.progress("disarm with rc input")
-            if not self.disarm_motors_with_rc_input():
-                raise NotAchievedException("Failed to disarm with RC input")
+            if self.is_balancebot():
+                self.progress("balancebot can't disarm with RC input")
+                self.disarm_vehicle()
+            else:
+                if not self.disarm_motors_with_rc_input():
+                    raise NotAchievedException("Failed to disarm with RC input")
 
             self.start_subtest("Test arm and disarm with switch")
             arming_switch = 7
@@ -2175,6 +2205,9 @@ class AutoTest(ABC):
     def is_rover(self):
         return False
 
+    def is_balancebot(self):
+        return False
+
     def is_heli(self):
         return False
 
@@ -2267,12 +2300,12 @@ switch value'''
 
     def test_pid_tuning(self):
         self.progress("making sure we're not getting PID_TUNING messages")
-        m = self.mav.recv_match(type='PID_TUNING', blocking=True, timeout=1)
+        m = self.mav.recv_match(type='PID_TUNING', blocking=True, timeout=5)
         if m is not None:
             raise PreconditionFailedException("Receiving PID_TUNING already")
         self.set_parameter("GCS_PID_MASK", 1)
         self.progress("making sure we are now getting PID_TUNING messages")
-        m = self.mav.recv_match(type='PID_TUNING', blocking=True, timeout=1)
+        m = self.mav.recv_match(type='PID_TUNING', blocking=True, timeout=5)
         if m is None:
             raise PreconditionFailedException("Did not start to get PID_TUNING message")
 

@@ -327,8 +327,9 @@ bool AP_Arming::ins_checks(bool report)
         }
 
         // check AHRS attitudes are consistent
-        if (!AP::ahrs().attitudes_consistent()) {
-            check_failed(ARMING_CHECK_INS, report, "Attitudes inconsistent");
+        char failure_msg[50] = {};
+        if (!AP::ahrs().attitudes_consistent(failure_msg, ARRAY_SIZE(failure_msg))) {
+            check_failed(ARMING_CHECK_INS, report, "%s", failure_msg);
             return false;
         }
     }
@@ -462,7 +463,7 @@ bool AP_Arming::battery_checks(bool report)
 
         char buffer[MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN+1] {};
         if (!AP::battery().arming_checks(sizeof(buffer), buffer)) {
-            check_failed(ARMING_CHECK_BATTERY, report, buffer);
+            check_failed(ARMING_CHECK_BATTERY, report, "%s", buffer);
             return false;
         }
      }
