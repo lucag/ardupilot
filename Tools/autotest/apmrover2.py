@@ -456,7 +456,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
 
         m = self.mav.recv_match(type='NAV_CONTROLLER_OUTPUT',
                                 blocking=True,
-                                timeout=0.1)
+                                timeout=1)
         if m is None:
             raise MsgRcvTimeoutException(
                 "Did not receive NAV_CONTROLLER_OUTPUT message")
@@ -498,10 +498,13 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
     def wait_distance_home_gt(self, distance, timeout=60):
         home_distance = None
         tstart = self.get_sim_time()
-        while self.get_sim_time() - tstart < timeout:
+        while self.get_sim_time_cached() - tstart < timeout:
             # m = self.mav.recv_match(type='VFR_HUD', blocking=True)
-            if self.distance_to_home() > distance:
+            distance_home = self.distance_to_home(use_cached_home=True)
+            self.progress("distance_home=%f want=%f" % (distance_home, distance))
+            if distance_home > distance:
                 return
+            self.drain_mav()
         raise NotAchievedException("Failed to get %fm from home (now=%f)" %
                                    (distance, home_distance))
 
@@ -712,6 +715,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             self.progress("chan3=%f want=%f" % (m.chan3_raw, normal_rc_throttle))
             if m.chan3_raw == normal_rc_throttle:
                 break
+        self.disarm_vehicle()
 
     def test_rc_overrides(self):
         self.context_push()
@@ -932,7 +936,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
 	                           -105.229401,
                                0,
                                0)
-        self.wait_location(loc)
+        self.wait_location(loc, accuracy=self.get_parameter("WP_RADIUS"))
         self.disarm_vehicle()
 
     def tests(self):

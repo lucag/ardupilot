@@ -67,7 +67,9 @@ class AutoTestSub(AutoTest):
                                     breakpoints=self.breakpoints,
                                     wipe=True)
         self.mavproxy = util.start_MAVProxy_SITL(
-            'ArduSub', options=self.mavproxy_options())
+            'ArduSub',
+            logfile=self.mavproxy_logfile,
+            options=self.mavproxy_options())
         self.mavproxy.expect('Telemetry log: (\S+)\r\n')
         self.logfile = self.mavproxy.match.group(1)
         self.progress("LOGFILE %s" % self.logfile)
@@ -178,7 +180,7 @@ class AutoTestSub(AutoTest):
 
         tstart = self.get_sim_time()
         while True:
-            if self.get_sim_time() - tstart > 200:
+            if self.get_sim_time_cached() - tstart > 200:
                 raise NotAchievedException("Did not move far enough")
             # send a position-control command
             self.mav.mav.set_position_target_global_int_send(
