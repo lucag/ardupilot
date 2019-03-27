@@ -82,7 +82,6 @@ class Board:
             '-Wall',
             '-Wextra',
             '-Wformat',
-            '-Wshadow',
             '-Wpointer-arith',
             '-Wcast-align',
             '-Wundef',
@@ -91,9 +90,11 @@ class Board:
             '-Wno-redundant-decls',
             '-Wno-unknown-pragmas',
             '-Wno-trigraphs',
+            '-Werror=shadow',
             '-Werror=return-type',
             '-Werror=unused-result',
             '-Werror=narrowing',
+            '-Werror=attributes',
         ]
 
         if cfg.options.enable_scripting:
@@ -151,7 +152,6 @@ class Board:
             '-Wall',
             '-Wextra',
             '-Wformat',
-            '-Wshadow',
             '-Wpointer-arith',
             '-Wcast-align',
             '-Wundef',
@@ -160,6 +160,7 @@ class Board:
             '-Wno-reorder',
             '-Wno-redundant-decls',
             '-Wno-unknown-pragmas',
+            '-Werror=attributes',
             '-Werror=format-security',
             '-Werror=enum-compare',
             '-Werror=array-bounds',
@@ -171,6 +172,7 @@ class Board:
             '-Werror=sign-compare',
             '-Werror=unused-result',
             '-Werror=return-type',
+            '-Werror=shadow',
             '-Wfatal-errors',
             '-Wno-trigraphs',
         ]
@@ -303,7 +305,7 @@ Please use a replacement build as follows:
 
         boards = _board_classes.keys()
         if not ctx.env.BOARD in boards:
-            ctx.fatal("Invalid board '%s': choices are %s" % (ctx.env.BOARD, ', '.join(boards)))
+            ctx.fatal("Invalid board '%s': choices are %s" % (ctx.env.BOARD, ', '.join(sorted(boards, key=str.lower))))
         _board = _board_classes[ctx.env.BOARD]()
     return _board
 
@@ -351,6 +353,11 @@ class sitl(Board):
             for f in os.listdir('libraries/AP_OSD/fonts'):
                 if fnmatch.fnmatch(f, "font*bin"):
                     env.ROMFS_FILES += [(f, 'libraries/AP_OSD/fonts/' + f)]
+
+        if cfg.options.enable_sfml_audio:
+            if not cfg.check_SFML_Audio(env):
+                cfg.fatal("Failed to find SFML Audio libraries")
+            env.CXXFLAGS += ['-DWITH_SITL_TONEALARM']
 
         if cfg.options.sitl_flash_storage:
             env.CXXFLAGS += ['-DSTORAGE_USE_FLASH=1']
@@ -769,3 +776,16 @@ class rst_zynq(linux):
         env.DEFINES.update(
             CONFIG_HAL_BOARD_SUBTYPE='HAL_BOARD_SUBTYPE_LINUX_RST_ZYNQ',
         )
+
+class SITL_static(sitl):
+    def configure_env(self, cfg, env):
+        super(SITL_static, self).configure_env(cfg, env)
+        cfg.env.STATIC_LINKING = True
+
+
+class SITL_x86_64_linux_gnu(SITL_static):
+    toolchain = 'x86_64-linux-gnu'
+
+
+class SITL_arm_linux_gnueabihf(SITL_static):
+    toolchain = 'arm-linux-gnueabihf'

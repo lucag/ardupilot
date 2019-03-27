@@ -83,10 +83,11 @@ void Sub::rpm_update(void)
 // initialise compass
 void Sub::init_compass()
 {
-    if (!compass.init() || !compass.read()) {
+    compass.init();
+    if (!compass.read()) {
         // make sure we don't pass a broken compass to DCM
         hal.console->println("COMPASS INIT ERROR");
-        Log_Write_Error(ERROR_SUBSYSTEM_COMPASS,ERROR_CODE_FAILED_TO_INITIALISE);
+        AP::logger().Write_Error(LogErrorSubsystem::COMPASS,LogErrorCode::FAILED_TO_INITIALISE);
         return;
     }
     ahrs.set_compass(&compass);

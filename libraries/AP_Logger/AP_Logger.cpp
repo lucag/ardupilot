@@ -6,6 +6,8 @@
 #include "AP_Logger_SITL.h"
 #include "AP_Logger_DataFlash.h"
 #include "AP_Logger_MAVLink.h"
+
+#include <AP_InternalError/AP_InternalError.h>
 #include <GCS_MAVLink/GCS.h>
 
 AP_Logger *AP_Logger::_singleton;
@@ -708,12 +710,6 @@ uint32_t AP_Logger::num_dropped() const
 
 // end functions pass straight through to backend
 
-void AP_Logger::internal_error() const {
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    AP_HAL::panic("Internal AP_Logger error");
-#endif
-}
-
 /* Write support */
 void AP_Logger::Write(const char *name, const char *labels, const char *fmt, ...)
 {
@@ -739,7 +735,7 @@ void AP_Logger::WriteV(const char *name, const char *labels, const char *units, 
     if (f == nullptr) {
         // unable to map name to a messagetype; could be out of
         // msgtypes, could be out of slots, ...
-        internal_error();
+        AP::internalerror().error(AP_InternalError::error_t::logger_mapfailure);
         return;
     }
 
@@ -875,7 +871,10 @@ AP_Logger::log_write_fmt *AP_Logger::msg_fmt_for_name(const char *name, const ch
     } else {
         memset((char*)ls_multipliers, '?', MIN(sizeof(ls_format), strlen(f->fmt)));
     }
-    validate_structure(&ls, (int16_t)-1);
+    if (!validate_structure(&ls, (int16_t)-1)) {
+        Debug("Log structure invalid");
+        abort();
+    }
 #endif
 
     return f;
@@ -1095,6 +1094,19 @@ void AP_Logger::Write_Event(Log_Event id)
         id       : id
     };
     WriteCriticalBlock(&pkt, sizeof(pkt));
+}
+
+// Write an error packet
+void AP_Logger::Write_Error(LogErrorSubsystem sub_system,
+                            LogErrorCode error_code)
+{
+  struct log_Error pkt = {
+      LOG_PACKET_HEADER_INIT(LOG_ERROR_MSG),
+      time_us       : AP_HAL::micros64(),
+      sub_system    : uint8_t(sub_system),
+      error_code    : uint8_t(error_code),
+  };
+  WriteCriticalBlock(&pkt, sizeof(pkt));
 }
 
 namespace AP {

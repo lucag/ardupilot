@@ -151,7 +151,6 @@ struct PACKED log_DSF {
     LOG_PACKET_HEADER;
     uint64_t time_us;
     uint32_t dropped;
-    uint8_t  internal_errors;
     uint16_t blocks;
     uint32_t bytes;
     uint32_t buf_space_min;
@@ -164,6 +163,14 @@ struct PACKED log_Event {
     uint64_t time_us;
     uint8_t id;
 };
+
+struct PACKED log_Error {
+  LOG_PACKET_HEADER;
+  uint64_t time_us;
+  uint8_t sub_system;
+  uint8_t error_code;
+};
+
 struct PACKED log_GPS {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -907,7 +914,6 @@ struct PACKED log_DF_MAV_Stats {
     uint32_t dropped;
     uint32_t retries;
     uint32_t resends;
-    uint8_t internal_errors; // uint8_t - wishful thinking?
     uint8_t state_free_avg;
     uint8_t state_free_min;
     uint8_t state_free_max;
@@ -1067,6 +1073,7 @@ struct PACKED log_Performance {
     uint32_t max_time;
     uint32_t mem_avail;
     uint16_t load;
+    uint32_t internal_errors;
 };
 
 struct PACKED log_SRTL {
@@ -1304,13 +1311,13 @@ Format characters in the format string for binary log messages
     { LOG_RFND_MSG, sizeof(log_RFND), \
       "RFND", "QCBBCBB", "TimeUS,Dist1,Stat1,Orient1,Dist2,Stat2,Orient2", "sm--m--", "FB--B--" }, \
     { LOG_DF_MAV_STATS, sizeof(log_DF_MAV_Stats), \
-      "DMS", "IIIIIBBBBBBBBBB",         "TimeMS,N,Dp,RT,RS,Er,Fa,Fmn,Fmx,Pa,Pmn,Pmx,Sa,Smn,Smx", "s--------------", "C--------------" }, \
+      "DMS", "IIIIIBBBBBBBBB",         "TimeMS,N,Dp,RT,RS,Fa,Fmn,Fmx,Pa,Pmn,Pmx,Sa,Smn,Smx", "s-------------", "C-------------" }, \
     { LOG_BEACON_MSG, sizeof(log_Beacon), \
       "BCN", "QBBfffffff",  "TimeUS,Health,Cnt,D0,D1,D2,D3,PosX,PosY,PosZ", "s--mmmmmmm", "F--BBBBBBB" }, \
     { LOG_PROXIMITY_MSG, sizeof(log_Proximity), \
       "PRX", "QBfffffffffff", "TimeUS,Health,D0,D45,D90,D135,D180,D225,D270,D315,DUp,CAn,CDis", "s-mmmmmmmmmhm", "F-BBBBBBBBB00" }, \
     { LOG_PERFORMANCE_MSG, sizeof(log_Performance),                     \
-      "PM",  "QHHIIH", "TimeUS,NLon,NLoop,MaxT,Mem,Load", "s---b%", "F---0A" }, \
+      "PM",  "QHHIIHI", "TimeUS,NLon,NLoop,MaxT,Mem,Load,IntErr", "s---b%-", "F---0A-" }, \
     { LOG_SRTL_MSG, sizeof(log_SRTL), \
       "SRTL", "QBHHBfff", "TimeUS,Active,NumPts,MaxPts,Action,N,E,D", "s----mmm", "F----000" }
 
@@ -1457,7 +1464,7 @@ Format characters in the format string for binary log messages
     { LOG_ORGN_MSG, sizeof(log_ORGN), \
       "ORGN","QBLLe","TimeUS,Type,Lat,Lng,Alt", "s-DUm", "F-GGB" },   \
     { LOG_DF_FILE_STATS, sizeof(log_DSF), \
-      "DSF", "QIBHIIII", "TimeUS,Dp,IErr,Blk,Bytes,FMn,FMx,FAv", "s---b---", "F---0---" }, \
+      "DSF", "QIHIIII", "TimeUS,Dp,Blk,Bytes,FMn,FMx,FAv", "s--b---", "F--0---" }, \
     { LOG_RPM_MSG, sizeof(log_RPM), \
       "RPM",  "Qff", "TimeUS,rpm1,rpm2", "sqq", "F00" }, \
     { LOG_GIMBAL1_MSG, sizeof(log_Gimbal1), \
@@ -1491,7 +1498,10 @@ Format characters in the format string for binary log messages
     { LOG_EVENT_MSG, sizeof(log_Event), \
       "EV",   "QB",           "TimeUS,Id", "s-", "F-" }, \
     { LOG_MSG_SBPEVENT, sizeof(log_SbpEvent), \
-      "SBRE", "QHIiBB", "TimeUS,GWk,GMS,ns_residual,level,quality", "s?????", "F?????" }
+      "SBRE", "QHIiBB", "TimeUS,GWk,GMS,ns_residual,level,quality", "s?????", "F?????" }, \
+    { LOG_ERROR_MSG, sizeof(log_Error), \
+      "ERR",   "QBB",         "TimeUS,Subsys,ECode", "s--", "F--" }
+
 // #endif
 
 #define LOG_COMMON_STRUCTURES LOG_BASE_STRUCTURES, LOG_EXTRA_STRUCTURES, LOG_SBP_STRUCTURES
@@ -1649,6 +1659,8 @@ enum LogMessages : uint8_t {
     LOG_EVENT_MSG,
     LOG_WHEELENCODER_MSG,
     LOG_MAV_MSG,
+    LOG_ERROR_MSG,
+
     _LOG_LAST_MSG_
 };
 

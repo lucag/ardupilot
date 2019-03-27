@@ -61,7 +61,7 @@ matrix:
       compiler: "gcc"
       env: CI_BUILD_TARGET="revo-bootloader iofirmware stm32f7 stm32h7"
     - compiler: "gcc"
-      env: CI_BUILD_TARGET="revo-mini"
+      env: CI_BUILD_TARGET="revo-mini configure-all"
     - if: type != cron
       compiler: "gcc"
       env: CI_BUILD_TARGET="sitltest-copter"
@@ -69,7 +69,7 @@ matrix:
       compiler: "gcc"
       env: CI_BUILD_TARGET="sitltest-quadplane sitltest-plane"
     - if: type != cron
-      compiler: "clang"
+      compiler: "clang-7"
       env: CI_BUILD_TARGET="sitltest-rover sitltest-sub""
     - language: python
       python: 3.7

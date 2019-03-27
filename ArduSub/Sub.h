@@ -480,7 +480,6 @@ private:
     void gcs_send_heartbeat(void);
     void send_heartbeat(mavlink_channel_t chan);
 #if RPM_ENABLED == ENABLED
-    void send_rpm(mavlink_channel_t chan);
     void rpm_update();
 #endif
     void Log_Write_Control_Tuning();
@@ -493,7 +492,6 @@ private:
     void Log_Write_Data(uint8_t id, int16_t value);
     void Log_Write_Data(uint8_t id, uint16_t value);
     void Log_Write_Data(uint8_t id, float value);
-    void Log_Write_Error(uint8_t sub_system, uint8_t error_code);
     void Log_Sensor_Health();
     void Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target, const Vector3f& vel_target);
     void Log_Write_Vehicle_Startup_Messages();
@@ -591,7 +589,7 @@ private:
     void update_surface_and_bottom_detector();
     void set_surfaced(bool at_surface);
     void set_bottomed(bool at_bottom);
-    bool init_arm_motors(AP_Arming::ArmingMethod method);
+    bool init_arm_motors(AP_Arming::Method method);
     void init_disarm_motors();
     void motors_output();
     Vector3f pv_location_to_vector(const Location& loc);

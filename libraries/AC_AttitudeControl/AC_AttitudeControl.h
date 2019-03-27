@@ -114,7 +114,7 @@ public:
     void reset_rate_controller_I_terms();
 
     // Sets attitude target to vehicle attitude
-    void set_attitude_target_to_current_attitude() { _attitude_target_quat.from_rotation_matrix(_ahrs.get_rotation_body_to_ned()); }
+    void set_attitude_target_to_current_attitude() { _ahrs.get_quat_body_to_ned(_attitude_target_quat); }
 
     // Sets yaw target to vehicle heading
     void set_yaw_target_to_current_heading() { shift_ef_yaw_target(degrees(_ahrs.yaw - _attitude_target_euler_angle.z)*100.0f); }
@@ -134,8 +134,13 @@ public:
     // Command an euler roll, pitch and yaw angle with angular velocity feedforward and smoothing
     virtual void input_euler_angle_roll_pitch_yaw(float euler_roll_angle_cd, float euler_pitch_angle_cd, float euler_yaw_angle_cd, bool slew_yaw);
 
-    // Command euler yaw rate and pitch angle with roll angle specified in body frame 
-    virtual void input_euler_rate_yaw_euler_angle_pitch_bf_roll(float euler_roll_angle_cd, float euler_pitch_angle_cd, float euler_yaw_rate_cds);
+    // Command euler yaw rate and pitch angle with roll angle specified in body frame with multicopter style controls
+    // (used only by tailsitter quadplanes)
+    virtual void input_euler_rate_yaw_euler_angle_pitch_bf_roll_m(float euler_roll_angle_cd, float euler_pitch_angle_cd, float euler_yaw_rate_cds);
+
+    // Command euler yaw rate and pitch angle with roll angle specified in body frame with plane style controls
+    // (used only by tailsitter quadplanes)
+    virtual void input_euler_rate_yaw_euler_angle_pitch_bf_roll_p(float euler_roll_angle_cd, float euler_pitch_angle_cd, float euler_yaw_rate_cds);
 
     // Command an euler roll, pitch, and yaw rate with angular velocity feedforward and smoothing
     void input_euler_rate_roll_pitch_yaw(float euler_roll_rate_cds, float euler_pitch_rate_cds, float euler_yaw_rate_cds);
@@ -433,11 +438,6 @@ protected:
 
     // true in inverted flight mode
     bool _inverted_flight;
-
-    // state for input_euler_rate_yaw_euler_angle_pitch_bf_roll()
-    // (would be expensive to compute from _attitude_target_quat)
-    float _last_body_roll;
-    float _last_euler_pitch;
 
 public:
     // log a CTRL message

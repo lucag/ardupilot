@@ -23,80 +23,31 @@ WIND = "0,180,0.2"  # speed,direction,variance
 
 
 class AutoTestPlane(AutoTest):
-    def __init__(self,
-                 binary,
-                 valgrind=False,
-                 gdb=False,
-                 speedup=10,
-                 frame=None,
-                 params=None,
-                 gdbserver=False,
-                 breakpoints=[],
-                 **kwargs):
-        super(AutoTestPlane, self).__init__(**kwargs)
-        self.binary = binary
-        self.valgrind = valgrind
-        self.gdb = gdb
-        self.frame = frame
-        self.params = params
-        self.gdbserver = gdbserver
-        self.breakpoints = breakpoints
 
-        self.homeloc = None
-        self.speedup = speedup
+    def log_name(self):
+        return "ArduPlane"
 
-        self.sitl = None
-
-        self.log_name = "ArduPlane"
+    def test_filepath(self):
+        return os.path.realpath(__file__)
 
     def sitl_start_location(self):
         return SITL_START_LOCATION
 
-    def init(self):
-        super(AutoTestPlane, self).init(os.path.realpath(__file__))
-        if self.frame is None:
-            self.frame = 'plane-elevrev'
+    def defaults_filepath(self):
+        return os.path.join(testdir, 'default_params/plane-jsbsim.parm')
 
-        self.mavproxy_logfile = self.open_mavproxy_logfile()
+    def default_frame(self):
+        return "plane-elevrev"
 
-        defaults_file = os.path.join(testdir,
-                                     'default_params/plane-jsbsim.parm')
-        self.sitl = util.start_SITL(self.binary,
-                                    wipe=True,
-                                    model=self.frame,
-                                    home=self.sitl_home(),
-                                    speedup=self.speedup,
-                                    defaults_file=defaults_file,
-                                    valgrind=self.valgrind,
-                                    gdb=self.gdb,
-                                    gdbserver=self.gdbserver,
-                                    breakpoints=self.breakpoints)
-        self.mavproxy = util.start_MAVProxy_SITL(
-            'ArduPlane',
-            logfile=self.mavproxy_logfile,
-            options=self.mavproxy_options())
-        self.mavproxy.expect('Telemetry log: (\S+)\r\n')
-        self.logfile = self.mavproxy.match.group(1)
-        self.progress("LOGFILE %s" % self.logfile)
-        self.try_symlink_tlog()
-
-        self.mavproxy.expect('Received [0-9]+ parameters')
-
-        util.expect_setup_callback(self.mavproxy, self.expect_callback)
-
-        self.expect_list_clear()
-        self.expect_list_extend([self.sitl, self.mavproxy])
-
-        self.progress("Started simulator")
-
-        self.get_mavlink_connection_going()
-
-        self.progress("Ready to start testing!")
+    def apply_defaultfile_parameters(self):
+        # plane passes in a defaults_file in place of applying
+        # parameters afterwards.
+        pass
 
     def is_plane(self):
         return True
 
-    def get_rudder_channel(self):
+    def get_stick_arming_channel(self):
         return int(self.get_parameter("RCMAP_YAW"))
 
     def get_disarm_delay(self):
@@ -773,11 +724,9 @@ class AutoTestPlane(AutoTest):
             raise NotAchievedException("Sensor healthy when it shouldn't be")
         self.progress("Making RC work again")
         self.set_parameter("SIM_RC_FAIL", 0)
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
-        m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
+        self.progress("Giving receiver time to recover")
+        for i in range(1, 10):
+            m = self.mav.recv_match(type='SYS_STATUS', blocking=True)
         self.progress("Testing receiver enabled")
         if (not (m.onboard_control_sensors_enabled & receiver_bit)):
             raise NotAchievedException("Receiver not enabled")
@@ -822,6 +771,7 @@ class AutoTestPlane(AutoTest):
         self.wait_ready_to_arm()
         self.arm_vehicle()
         self.mavproxy.expect("BANG")
+        self.disarm_vehicle(force=True)
         self.reboot_sitl()
 
     def run_subtest(self, desc, func):
