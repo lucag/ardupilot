@@ -111,11 +111,10 @@ protected:
     // pilot input processing
     void get_pilot_desired_lean_angles(float &roll_out, float &pitch_out, float angle_max, float angle_limit) const;
 
-    // takeoff support
-    bool takeoff_triggered(float target_climb_rate) const;
-
     // helper functions
     void zero_throttle_and_relax_ac(bool spool_up = false);
+    void zero_throttle_and_hold_attitude();
+    void make_safe_spool_down();
 
     // functions to control landing
     // in modes that support landing
@@ -125,6 +124,16 @@ protected:
 
     // return expected input throttle setting to hover:
     virtual float throttle_hover() const;
+
+    // Alt_Hold based flight mode states used in Alt_Hold, Loiter, and Sport
+    enum AltHoldModeState {
+        AltHold_MotorStopped,
+        AltHold_Takeoff,
+        AltHold_Landed_Ground_Idle,
+        AltHold_Landed_Pre_Takeoff,
+        AltHold_Flying
+    };
+    AltHoldModeState get_alt_hold_state(float target_climb_rate_cms);
 
     // convenience references to avoid code churn in conversion:
     Parameters &g;
@@ -604,13 +613,13 @@ private:
     // Flip
     Vector3f orig_attitude;         // original vehicle attitude before flip
 
-    enum FlipState {
-        Flip_Start,
-        Flip_Roll,
-        Flip_Pitch_A,
-        Flip_Pitch_B,
-        Flip_Recover,
-        Flip_Abandon
+    enum class FlipState : uint8_t {
+        Start,
+        Roll,
+        Pitch_A,
+        Pitch_B,
+        Recover,
+        Abandon
     };
     FlipState _state;               // current state of flip
     control_mode_t   orig_control_mode;   // flight mode when flip was initated
@@ -669,13 +678,13 @@ private:
     void update_height_estimate(void);
 
     // minimum assumed height
-    const float height_min = 0.1;
+    const float height_min = 0.1f;
 
     // maximum scaling height
-    const float height_max = 3.0;
+    const float height_max = 3.0f;
 
     AP_Float flow_max;
-    AC_PI_2D flow_pi_xy{0.2, 0.3, 3000, 5, 0.0025};
+    AC_PI_2D flow_pi_xy{0.2f, 0.3f, 3000, 5, 0.0025f};
     AP_Float flow_filter_hz;
     AP_Int8  flow_min_quality;
     AP_Int8  brake_rate_dps;

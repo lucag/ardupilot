@@ -305,7 +305,7 @@ void Copter::update_batt_compass(void)
     // read battery before compass because it may be used for motor interference compensation
     battery.read();
 
-    if(g.compass_enabled) {
+    if(AP::compass().enabled()) {
         // update compass with throttle value - used for compassmot
         compass.set_throttle(motors->get_throttle());
         compass.set_voltage(battery.voltage());
@@ -341,7 +341,7 @@ void Copter::ten_hz_logging_loop()
     if (should_log(MASK_LOG_RCIN)) {
         logger.Write_RCIN();
         if (rssi.enabled()) {
-            logger.Write_RSSI(rssi);
+            logger.Write_RSSI();
         }
     }
     if (should_log(MASK_LOG_RCOUT)) {
@@ -492,7 +492,7 @@ void Copter::init_simple_bearing()
     super_simple_cos_yaw = simple_cos_yaw;
     super_simple_sin_yaw = simple_sin_yaw;
 
-    // log the simple bearing to dataflash
+    // log the simple bearing
     if (should_log(MASK_LOG_ANY)) {
         Log_Write_Data(DATA_INIT_SIMPLE_BEARING, ahrs.yaw_sensor);
     }
@@ -571,7 +571,6 @@ void Copter::update_altitude()
     // read in baro altitude
     read_barometer();
 
-    // write altitude info to dataflash logs
     if (should_log(MASK_LOG_CTUN)) {
         Log_Write_Control_Tuning();
     }

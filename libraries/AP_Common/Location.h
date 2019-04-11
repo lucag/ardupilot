@@ -72,8 +72,17 @@ public:
     // return distance in meters between two locations
     float get_distance(const struct Location &loc2) const;
 
+    // return the distance in meters in North/East/Down plane as a N/E/D vector to loc2
+    Vector3f get_distance_NED(const Location &loc2) const;
+
+    // return the distance in meters in North/East plane as a N/E vector to loc2
+    Vector2f get_distance_NE(const Location &loc2) const;
+
     // extrapolate latitude/longitude given distances (in meters) north and east
     void offset(float ofs_north, float ofs_east);
+
+    // extrapolate latitude/longitude given bearing and distance
+    void offset_bearing(float bearing, float distance);
 
     // longitude_scale - returns the scaler to compensate for
     // shrinking longitude as you move north or south from the equator
@@ -84,6 +93,20 @@ public:
     bool is_zero(void) const;
 
     void zero(void);
+
+    // return bearing in centi-degrees from location to loc2
+    int32_t get_bearing_to(const struct Location &loc2) const;
+
+    // check if lat and lng match. Ignore altitude and options
+    bool same_latlon_as(const Location &loc2) const;
+
+    /*
+     * convert invalid waypoint with useful data. return true if location changed
+     */
+    bool sanitize(const struct Location &defaultLoc);
+
+    // return true when lat and lng are within range
+    bool check_latlng() const;
 
 private:
     static AP_Terrain *_terrain;

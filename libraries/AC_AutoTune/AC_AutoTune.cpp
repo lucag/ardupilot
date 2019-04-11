@@ -168,7 +168,6 @@ bool AC_AutoTune::init_internals(bool _use_poshold,
         if (success) {
             // reset gains to tuning-start gains (i.e. low I term)
             load_gains(GAIN_INTRA_TEST);
-            // write dataflash log even and send message to ground station
             Log_Write_Event(EVENT_AUTOTUNE_RESTART);
             update_gcs(AUTOTUNE_MESSAGE_STARTED);
         }
@@ -196,7 +195,6 @@ void AC_AutoTune::stop()
     // re-enable angle-to-rate request limits
     attitude_control->use_sqrt_controller(true);
 
-    // log off event and send message to ground station
     update_gcs(AUTOTUNE_MESSAGE_STOPPED);
     Log_Write_Event(EVENT_AUTOTUNE_OFF);
 
@@ -351,7 +349,7 @@ void AC_AutoTune::run()
     // this should not actually be possible because of the init() checks
     if (!motors->armed() || !motors->get_interlock()) {
         motors->set_desired_spool_state(AP_Motors::DESIRED_GROUND_IDLE);
-        attitude_control->set_throttle_out_unstabilized(0.0f, true, 0);
+        attitude_control->set_throttle_out(0.0f, true, 0.0f);
         pos_control->relax_alt_hold_controllers(0.0f);
         return;
     }

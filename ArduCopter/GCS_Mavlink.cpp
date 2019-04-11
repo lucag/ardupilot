@@ -117,6 +117,47 @@ void GCS_MAVLINK_Copter::send_position_target_global_int()
         0.0f); // yaw_rate
 }
 
+void GCS_MAVLINK_Copter::send_position_target_local_ned()
+{
+    if (!copter.flightmode->in_guided_mode()) {
+        return;
+    }
+    
+    const GuidedMode guided_mode = copter.mode_guided.mode();
+    Vector3f target_pos;
+    Vector3f target_vel;
+    uint16_t type_mask;
+
+    if (guided_mode == Guided_WP) {
+        type_mask = 0x0FF8; // ignore everything except position
+        target_pos = copter.wp_nav->get_wp_destination() * 0.01f; // convert to metres
+    } else if (guided_mode == Guided_Velocity) {
+        type_mask = 0x0FC7; // ignore everything except velocity
+        target_vel = copter.flightmode->pos_control->get_desired_velocity() * 0.01f; // convert to m/s
+    } else {
+        type_mask = 0x0FC0; // ignore everything except position & velocity
+        target_pos = copter.wp_nav->get_wp_destination() * 0.01f;
+        target_vel = copter.flightmode->pos_control->get_desired_velocity() * 0.01f;
+    }
+
+    mavlink_msg_position_target_local_ned_send(
+        chan,
+        AP_HAL::millis(), // time boot ms
+        MAV_FRAME_LOCAL_NED, 
+        type_mask,
+        target_pos.x, // x in metres
+        target_pos.y, // y in metres
+        -target_pos.z, // z in metres NED frame
+        target_vel.x, // vx in m/s
+        target_vel.y, // vy in m/s
+        -target_vel.z, // vz in m/s NED frame
+        0.0f, // afx
+        0.0f, // afy
+        0.0f, // afz
+        0.0f, // yaw
+        0.0f); // yaw_rate
+}
+
 void GCS_MAVLINK_Copter::send_nav_controller_output() const
 {
     if (!copter.ap.initialised) {
@@ -512,7 +553,7 @@ MAV_RESULT GCS_MAVLINK_Copter::_handle_command_preflight_calibration(const mavli
 
 MAV_RESULT GCS_MAVLINK_Copter::handle_command_do_set_roi(const Location &roi_loc)
 {
-    if (!check_latlng(roi_loc)) {
+    if (!roi_loc.check_latlng()) {
         return MAV_RESULT_FAILED;
     }
     copter.flightmode->auto_yaw.set_roi(roi_loc);
@@ -879,15 +920,10 @@ void GCS_MAVLINK_Copter::handleMessage(mavlink_message_t* msg)
 
         uint32_t tnow = AP_HAL::millis();
 
-        int16_t roll = (packet.y == INT16_MAX) ? 0 : copter.channel_roll->get_radio_min() + (copter.channel_roll->get_radio_max() - copter.channel_roll->get_radio_min()) * (packet.y + 1000) / 2000.0f;
-        int16_t pitch = (packet.x == INT16_MAX) ? 0 : copter.channel_pitch->get_radio_min() + (copter.channel_pitch->get_radio_max() - copter.channel_pitch->get_radio_min()) * (-packet.x + 1000) / 2000.0f;
-        int16_t throttle = (packet.z == INT16_MAX) ? 0 : copter.channel_throttle->get_radio_min() + (copter.channel_throttle->get_radio_max() - copter.channel_throttle->get_radio_min()) * (packet.z) / 1000.0f;
-        int16_t yaw = (packet.r == INT16_MAX) ? 0 : copter.channel_yaw->get_radio_min() + (copter.channel_yaw->get_radio_max() - copter.channel_yaw->get_radio_min()) * (packet.r + 1000) / 2000.0f;
-
-        RC_Channels::set_override(uint8_t(copter.rcmap.roll() - 1), roll, tnow);
-        RC_Channels::set_override(uint8_t(copter.rcmap.pitch() - 1), pitch, tnow);
-        RC_Channels::set_override(uint8_t(copter.rcmap.throttle() - 1), throttle, tnow);
-        RC_Channels::set_override(uint8_t(copter.rcmap.yaw() - 1), yaw, tnow);
+        manual_override(copter.channel_roll, packet.y, 1000, 2000, tnow);
+        manual_override(copter.channel_pitch, packet.x, 1000, 2000, tnow, true);
+        manual_override(copter.channel_throttle, packet.z, 0, 1000, tnow);
+        manual_override(copter.channel_yaw, packet.r, 1000, 2000, tnow);
 
         // a manual control message is considered to be a 'heartbeat' from the ground station for failsafe purposes
         copter.failsafe.last_heartbeat_ms = tnow;

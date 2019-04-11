@@ -76,7 +76,7 @@ bool AP_Arming_Plane::pre_arm_checks(bool display_failure)
         }
     }
 
-    if (plane.control_mode == AUTO && plane.mission.num_commands() <= 1) {
+    if (plane.control_mode == &plane.mode_auto && plane.mission.num_commands() <= 1) {
         check_failed(ARMING_CHECK_NONE, display_failure, "No mission loaded");
         ret = false;
     }
@@ -105,7 +105,7 @@ bool AP_Arming_Plane::ins_checks(bool display_failure)
     // additional plane specific checks
     if ((checks_to_perform & ARMING_CHECK_ALL) ||
         (checks_to_perform & ARMING_CHECK_INS)) {
-        if (!AP::ahrs().healthy()) {
+        if (!AP::ahrs().prearm_healthy()) {
             const char *reason = AP::ahrs().prearm_failure_reason();
             if (reason == nullptr) {
                 reason = "AHRS not healthy";

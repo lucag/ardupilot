@@ -3,7 +3,7 @@
  *
  *       AHRS system using DCM matrices
  *
- *       Based on DCM code by Doug Weibel, Jordi Muñoz and Jose Julio. DIYDrones.com
+ *       Based on DCM code by Doug Weibel, Jordi Munoz and Jose Julio. DIYDrones.com
  *
  *       Adapted for the general ArduPilot AHRS interface by Andrew Tridgell
 
@@ -286,7 +286,7 @@ AP_AHRS_DCM::renorm(Vector3f const &a, Vector3f &result)
  *  to approximations rather than identities. In effect, the axes in the two frames of reference no
  *  longer describe a rigid body. Fortunately, numerical error accumulates very slowly, so it is a
  *  simple matter to stay ahead of it.
- *  We call the process of enforcing the orthogonality conditions ÒrenormalizationÓ.
+ *  We call the process of enforcing the orthogonality conditions: renormalization.
  */
 void
 AP_AHRS_DCM::normalize(void)
@@ -989,7 +989,7 @@ bool AP_AHRS_DCM::get_position(struct Location &loc) const
     if (_flags.fly_forward && _have_position) {
         float gps_delay_sec = 0;
         _gps.get_lag(gps_delay_sec);
-        location_update(loc, _gps.ground_course_cd() * 0.01f, _gps.ground_speed() * gps_delay_sec);
+        loc.offset_bearing(_gps.ground_course_cd() * 0.01f, _gps.ground_speed() * gps_delay_sec);
     }
     return _have_position;
 }
@@ -1037,7 +1037,7 @@ bool AP_AHRS_DCM::set_home(const Location &loc)
     if (loc.lat == 0 && loc.lng == 0 && loc.alt == 0) {
         return false;
     }
-    if (!check_latlng(loc)) {
+    if (!loc.check_latlng()) {
         return false;
     }
     // home must always be global frame at the moment as .alt is
@@ -1051,7 +1051,6 @@ bool AP_AHRS_DCM::set_home(const Location &loc)
     _home = tmp;
     _home_is_set = true;
 
-    // log ahrs home and ekf origin dataflash
     Log_Write_Home_And_Origin();
 
     // send new home and ekf origin to GCS

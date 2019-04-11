@@ -22,7 +22,6 @@ bool Copter::ModeRTL::init(bool ignore_checks)
 // re-start RTL with terrain following disabled
 void Copter::ModeRTL::restart_without_terrain()
 {
-    // log an error
     AP::logger().Write_Error(LogErrorSubsystem::NAVIGATION, LogErrorCode::RESTARTED_RTL);
     if (rtl_path.terrain_used) {
         build_path(false);
@@ -128,10 +127,9 @@ void Copter::ModeRTL::return_start()
 //      called by rtl_run at 100hz or more
 void Copter::ModeRTL::climb_return_run()
 {
-    // if not auto armed or motor interlock not enabled set throttle to zero and exit immediately
-    if (!motors->armed() || !ap.auto_armed || !motors->get_interlock()) {
-        zero_throttle_and_relax_ac();
-        // To-Do: re-initialise wpnav targets
+    // if not armed set throttle to zero and exit immediately
+    if (!motors->armed() || !ap.auto_armed || ap.land_complete) {
+        make_safe_spool_down();
         return;
     }
 
@@ -186,10 +184,9 @@ void Copter::ModeRTL::loiterathome_start()
 //      called by rtl_run at 100hz or more
 void Copter::ModeRTL::loiterathome_run()
 {
-    // if not auto armed or motor interlock not enabled set throttle to zero and exit immediately
-    if (!motors->armed() || !ap.auto_armed || !motors->get_interlock()) {
-        zero_throttle_and_relax_ac();
-        // To-Do: re-initialise wpnav targets
+    // if not armed set throttle to zero and exit immediately
+    if (!motors->armed() || !ap.auto_armed || ap.land_complete) {
+        make_safe_spool_down();
         return;
     }
 
@@ -259,12 +256,9 @@ void Copter::ModeRTL::descent_run()
     float target_pitch = 0.0f;
     float target_yaw_rate = 0.0f;
 
-    // if not auto armed or motor interlock not enabled set throttle to zero and exit immediately
-    if (!motors->armed() || !ap.auto_armed || !motors->get_interlock()) {
-        zero_throttle_and_relax_ac();
-        // set target to current position
-        loiter_nav->clear_pilot_desired_acceleration();
-        loiter_nav->init_target();
+    // if not armed set throttle to zero and exit immediately
+    if (!motors->armed() || !ap.auto_armed || ap.land_complete) {
+        make_safe_spool_down();
         return;
     }
 
@@ -359,20 +353,18 @@ bool Copter::ModeRTL::landing_gear_should_be_deployed() const
 //      called by rtl_run at 100hz or more
 void Copter::ModeRTL::land_run(bool disarm_on_land)
 {
-    // if not auto armed or landing completed or motor interlock not enabled set throttle to zero and exit immediately
-    if (!motors->armed() || !ap.auto_armed || ap.land_complete || !motors->get_interlock()) {
-        zero_throttle_and_relax_ac();
-        // set target to current position
-        loiter_nav->clear_pilot_desired_acceleration();
+    // check if we've completed this stage of RTL
+    _state_complete = ap.land_complete;
+
+    // disarm when the landing detector says we've landed
+    if (disarm_on_land && ap.land_complete && motors->get_spool_mode() == AP_Motors::GROUND_IDLE) {
+        copter.init_disarm_motors();
+    }
+
+    // if not armed set throttle to zero and exit immediately
+    if (!motors->armed() || !ap.auto_armed || ap.land_complete) {
+        make_safe_spool_down();
         loiter_nav->init_target();
-
-        // disarm when the landing detector says we've landed
-        if (ap.land_complete && disarm_on_land) {
-            copter.init_disarm_motors();
-        }
-
-        // check if we've completed this stage of RTL
-        _state_complete = ap.land_complete;
         return;
     }
 
@@ -381,9 +373,6 @@ void Copter::ModeRTL::land_run(bool disarm_on_land)
 
     land_run_horizontal_control();
     land_run_vertical_control();
-
-    // check if we've completed this stage of RTL
-    _state_complete = ap.land_complete;
 }
 
 void Copter::ModeRTL::build_path(bool terrain_following_allowed)

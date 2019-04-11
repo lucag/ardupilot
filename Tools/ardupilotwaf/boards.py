@@ -173,6 +173,7 @@ class Board:
             '-Werror=unused-result',
             '-Werror=return-type',
             '-Werror=shadow',
+            '-Werror=unused-variable',
             '-Wfatal-errors',
             '-Wno-trigraphs',
         ]
@@ -420,7 +421,6 @@ class chibios(Board):
             '-Wno-unused-parameter',
             '-Werror=array-bounds',
             '-Wfatal-errors',
-            '-Werror=unused-variable',
             '-Werror=uninitialized',
             '-Werror=init-self',
             '-Wframe-larger-than=1024',

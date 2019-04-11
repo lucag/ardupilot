@@ -32,12 +32,10 @@ bool Copter::Mode::do_user_takeoff(float takeoff_alt_cm, bool must_navigate)
         return false;
     }
 
-#if FRAME_CONFIG == HELI_FRAME
     // Helicopters should return false if MAVlink takeoff command is received while the rotor is not spinning
-    if (!copter.motors->rotor_runup_complete()) {
+    if (motors->get_spool_mode() != AP_Motors::THROTTLE_UNLIMITED && ap.using_interlock) {
         return false;
     }
-#endif
 
     if (!do_user_takeoff_start(takeoff_alt_cm)) {
         return false;
@@ -159,10 +157,6 @@ void Copter::Mode::auto_takeoff_attitude_run(float target_yaw_rate)
         // we haven't reached the takeoff navigation altitude yet
         nav_roll = 0;
         nav_pitch = 0;
-#if FRAME_CONFIG == HELI_FRAME
-        // prevent hover roll starting till past specified altitude
-        copter.hover_roll_trim_scalar_slew = 0;        
-#endif
         // tell the position controller that we have limited roll/pitch demand to prevent integrator buildup
         pos_control->set_limit_accel_xy();
     } else {

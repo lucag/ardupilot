@@ -93,13 +93,11 @@ void Copter::auto_disarm_check()
         return;
     }
 
-#if FRAME_CONFIG == HELI_FRAME
     // if the rotor is still spinning, don't initiate auto disarm
-    if (motors->rotor_speed_above_critical()) {
+    if (motors->get_spool_mode() != AP_Motors::GROUND_IDLE) {
         auto_disarm_begin = tnow_ms;
         return;
     }
-#endif
 
     // always allow auto disarm if using interlock switch or motors are Emergency Stopped
     if ((ap.using_interlock && !motors->get_interlock()) || SRV_Channels::get_emergency_stop()) {
@@ -156,7 +154,7 @@ bool Copter::init_arm_motors(const AP_Arming::Method method, const bool do_armin
         return false;
     }
 
-    // let dataflash know that we're armed (it may open logs e.g.)
+    // let logger know that we're armed (it may open logs e.g.)
     AP::logger().set_vehicle_armed(true);
 
     // disable cpu failsafe because initialising everything takes a while
@@ -217,7 +215,6 @@ bool Copter::init_arm_motors(const AP_Arming::Method method, const bool do_armin
     // finally actually arm the motors
     motors->armed(true);
 
-    // log arming to dataflash
     Log_Write_Event(DATA_ARMED);
 
     // log flight mode in case it was changed while vehicle was disarmed
@@ -276,7 +273,6 @@ void Copter::init_disarm_motors()
     set_land_complete(true);
     set_land_complete_maybe(true);
 
-    // log disarm to the dataflash
     Log_Write_Event(DATA_DISARMED);
 
     // send disarm command to motors
@@ -353,7 +349,7 @@ void Copter::lost_vehicle_check()
     static uint8_t soundalarm_counter;
 
     // disable if aux switch is setup to vehicle alarm as the two could interfere
-    if (rc().find_channel_for_option(RC_Channel::aux_func::LOST_VEHICLE_SOUND)) {
+    if (rc().find_channel_for_option(RC_Channel::AUX_FUNC::LOST_VEHICLE_SOUND)) {
         return;
     }
 

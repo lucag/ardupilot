@@ -509,6 +509,7 @@ is bob we will attempt to checkout bob-AVR'''
                 "erlebrain2",
                 "navio",
                 "navio2",
+                "edge",
                 "pxf",
                 "pxfmini",
                 "KakuteF4",
@@ -530,6 +531,7 @@ is bob we will attempt to checkout bob-AVR'''
                 "Pixhawk4",
                 "PH4-mini",
                 "CUAVv5",
+                "CUAVv5Nano",
                 "mRoX21",
                 "Pixracer",
                 "F4BY",
@@ -577,7 +579,7 @@ is bob we will attempt to checkout bob-AVR'''
 
     def build_antennatracker(self, tag):
         '''build Tracker binaries'''
-        boards = ['navio', 'navio2']
+        boards = self.common_boards()[:]
         self.build_vehicle(tag,
                            "AntennaTracker",
                            boards,

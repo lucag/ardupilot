@@ -22,11 +22,16 @@
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <AP_RangeFinder/RangeFinder_Backend.h>
 #include <AP_Airspeed/AP_Airspeed.h>
+#include <AP_Camera/AP_Camera.h>
 #include <AP_Gripper/AP_Gripper.h>
 #include <AP_BLHeli/AP_BLHeli.h>
 #include <AP_Common/Semaphore.h>
+#include <AP_RSSI/AP_RSSI.h>
 #include <AP_Scheduler/AP_Scheduler.h>
+#include <AP_Mount/AP_Mount.h>
+#include <AP_Common/AP_FWVersion.h>
 #include <AP_VisualOdom/AP_VisualOdom.h>
+#include <AP_OpticalFlow/OpticalFlow.h>
 
 #include "GCS.h"
 
@@ -950,6 +955,7 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
         { MAVLINK_MSG_ID_RPM,                   MSG_RPM},
         { MAVLINK_MSG_ID_MISSION_ITEM_REACHED,  MSG_MISSION_ITEM_REACHED},
         { MAVLINK_MSG_ID_POSITION_TARGET_GLOBAL_INT,  MSG_POSITION_TARGET_GLOBAL_INT},
+        { MAVLINK_MSG_ID_POSITION_TARGET_LOCAL_NED,  MSG_POSITION_TARGET_LOCAL_NED},
         { MAVLINK_MSG_ID_ADSB_VEHICLE,          MSG_ADSB_VEHICLE},
         { MAVLINK_MSG_ID_BATTERY_STATUS,        MSG_BATTERY_STATUS},
         { MAVLINK_MSG_ID_AOA_SSA,               MSG_AOA_SSA},
@@ -1322,7 +1328,7 @@ bool GCS_MAVLINK::set_ap_message_interval(enum ap_message id, uint16_t interval_
     // send messages out at most 80% of main loop rate
     if (interval_ms != 0 &&
         interval_ms*800 < AP::scheduler().get_loop_period_us()) {
-        interval_ms = AP::scheduler().get_loop_period_us()/800.0;
+        interval_ms = AP::scheduler().get_loop_period_us()/800.0f;
     }
 
     // check if it's a specially-handled message:
@@ -1531,7 +1537,7 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
         }
     }
 
-    // consider logging mavlink stats to dataflash:
+    // consider logging mavlink stats:
     if (is_active() || is_streaming()) {
         if (tnow - last_mavlink_stats_logged > 1000) {
             log_mavlink_stats();
@@ -1623,7 +1629,7 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
 }
 
 /*
-  record stats about this link to dataflash
+  record stats about this link to logger
 */
 void GCS_MAVLINK::log_mavlink_stats()
 {
@@ -1808,7 +1814,7 @@ void GCS_MAVLINK::send_scaled_pressure_instance(uint8_t instance, void (*send_fn
     float press_diff = 0; // pascal
     AP_Airspeed *airspeed = AP_Airspeed::get_singleton();
     if (airspeed != nullptr &&
-        instance < AIRSPEED_MAX_SENSORS) {
+        airspeed->enabled(instance)) {
         press_diff = airspeed->get_differential_pressure(instance) * 0.01f;
         have_data = true;
     }
@@ -1894,9 +1900,9 @@ void GCS_MAVLINK::send_ahrs()
 */
 void GCS::send_statustext(MAV_SEVERITY severity, uint8_t dest_bitmask, const char *text)
 {
-    AP_Logger *dataflash = AP_Logger::get_singleton();
-    if (dataflash != nullptr) {
-        dataflash->Write_Message(text);
+    AP_Logger *logger = AP_Logger::get_singleton();
+    if (logger != nullptr) {
+        logger->Write_Message(text);
     }
 
     // add statustext message to FrSky lib queue
@@ -2641,8 +2647,8 @@ void GCS_MAVLINK::handle_timesync(mavlink_message_t *msg)
                         msg->sysid,
                         round_trip_time_us*0.001f);
 #endif
-        AP_Logger *df = AP_Logger::get_singleton();
-        if (df != nullptr) {
+        AP_Logger *logger = AP_Logger::get_singleton();
+        if (logger != nullptr) {
             AP::logger().Write(
                 "TSYN",
                 "TimeUS,SysID,RTT",
@@ -2692,8 +2698,8 @@ void GCS_MAVLINK::send_timesync()
 
 void GCS_MAVLINK::handle_statustext(mavlink_message_t *msg)
 {
-    AP_Logger *df = AP_Logger::get_singleton();
-    if (df == nullptr) {
+    AP_Logger *logger = AP_Logger::get_singleton();
+    if (logger == nullptr) {
         return;
     }
 
@@ -2714,7 +2720,7 @@ void GCS_MAVLINK::handle_statustext(mavlink_message_t *msg)
 
     memcpy(&text[offset], packet.text, MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN);
 
-    df->Write_Message(text);
+    logger->Write_Message(text);
 }
 
 
@@ -2771,7 +2777,7 @@ MAV_RESULT GCS_MAVLINK::handle_command_camera(const mavlink_command_long_t &pack
 void GCS_MAVLINK::set_ekf_origin(const Location& loc)
 {
     // check location is valid
-    if (!check_latlng(loc)) {
+    if (!loc.check_latlng()) {
         return;
     }
 
@@ -2787,7 +2793,6 @@ void GCS_MAVLINK::set_ekf_origin(const Location& loc)
         return;
     }
 
-    // log ahrs home and ekf origin dataflash
     ahrs.Log_Write_Home_And_Origin();
 
     // send ekf origin to GCS
@@ -3011,6 +3016,17 @@ void GCS_MAVLINK::handle_rc_channels_override(const mavlink_message_t *msg)
     RC_Channels::set_override(15, packet.chan16_raw, tnow);
 }
 
+// allow override of RC channel values for HIL or for complete GCS
+// control of switch position and RC PWM values.
+void GCS_MAVLINK::handle_optical_flow(const mavlink_message_t *msg)
+{
+    OpticalFlow *optflow = AP::opticalflow();
+    if (optflow == nullptr) {
+        return;
+    }
+    optflow->handle_msg(msg);
+}
+
 /*
   handle messages which don't require vehicle specific data
  */
@@ -3176,6 +3192,10 @@ void GCS_MAVLINK::handle_common_message(mavlink_message_t *msg)
     case MAVLINK_MSG_ID_RC_CHANNELS_OVERRIDE:
         handle_rc_channels_override(msg);
         break;
+
+    case MAVLINK_MSG_ID_OPTICAL_FLOW:
+        handle_optical_flow(msg);
+        break;
     }
 }
 
@@ -3312,7 +3332,7 @@ MAV_RESULT GCS_MAVLINK::handle_command_preflight_set_sensor_offsets(const mavlin
     if (compassNumber == (uint8_t) -1) {
         return MAV_RESULT_FAILED;
     }
-    compass.set_and_save_offsets(compassNumber, packet.param2, packet.param3, packet.param4);
+    compass.set_and_save_offsets(compassNumber, Vector3f(packet.param2, packet.param3, packet.param4));
     return MAV_RESULT_ACCEPTED;
 }
 
@@ -3712,7 +3732,7 @@ MAV_RESULT GCS_MAVLINK::handle_command_do_set_roi(const Location &roi_loc)
     }
 
     // sanity check location
-    if (!check_latlng(roi_loc)) {
+    if (!roi_loc.check_latlng()) {
         return MAV_RESULT_FAILED;
     }
 
@@ -4187,6 +4207,11 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
         send_position_target_global_int();
         break;
 
+    case MSG_POSITION_TARGET_LOCAL_NED:
+        CHECK_PAYLOAD_SIZE(POSITION_TARGET_LOCAL_NED);
+        send_position_target_local_ned();
+        break;
+
     case MSG_POWER_STATUS:
         CHECK_PAYLOAD_SIZE(POWER_STATUS);
         send_power_status();
@@ -4587,6 +4612,23 @@ uint64_t GCS_MAVLINK::capabilities() const
     return ret;
 }
 
+
+void GCS_MAVLINK::manual_override(RC_Channel *c, int16_t value_in, const uint16_t offset, const float scaler, const uint32_t tnow, const bool reversed)
+{
+    if (c == nullptr) {
+        return;
+    }
+    int16_t override_value = 0;
+    if (value_in != INT16_MAX) {
+        const int16_t radio_min = c->get_radio_min();
+        const int16_t radio_max = c->get_radio_max();
+        if (reversed) {
+            value_in *= -1;
+        }
+        override_value = radio_min + (radio_max - radio_min) * (value_in + offset) / scaler;
+    }
+    c->set_override(override_value, tnow);
+}
 
 GCS &gcs()
 {

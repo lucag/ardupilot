@@ -19,6 +19,7 @@
 
 #include "AP_Common/AP_FWVersion.h"
 #include "GCS.h"
+#include <AP_Logger/AP_Logger.h>
 
 extern const AP_HAL::HAL& hal;
 
@@ -292,9 +293,9 @@ void GCS_MAVLINK::handle_param_set(mavlink_message_t *msg)
     // save the change
     vp->save(force_save);
 
-    AP_Logger *AP_Logger = AP_Logger::get_singleton();
-    if (AP_Logger != nullptr) {
-        AP_Logger->Write_Parameter(key, vp->cast_to_float(var_type));
+    AP_Logger *logger = AP_Logger::get_singleton();
+    if (logger != nullptr) {
+        logger->Write_Parameter(key, vp->cast_to_float(var_type));
     }
 }
 
@@ -319,9 +320,9 @@ void GCS::send_parameter_value(const char *param_name, ap_var_type param_type, f
         }
     }
     // also log to AP_Logger
-    AP_Logger *dataflash = AP_Logger::get_singleton();
-    if (dataflash != nullptr) {
-        dataflash->Write_Parameter(param_name, param_value);
+    AP_Logger *logger = AP_Logger::get_singleton();
+    if (logger != nullptr) {
+        logger->Write_Parameter(param_name, param_value);
     }
 }
 

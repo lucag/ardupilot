@@ -167,7 +167,7 @@ void Sub::update_batt_compass()
     // read battery before compass because it may be used for motor interference compensation
     battery.read();
 
-    if (g.compass_enabled) {
+    if (AP::compass().enabled()) {
         // update compass with throttle value - used for compassmot
         compass.set_throttle(motors.get_throttle());
         compass.read();
@@ -336,7 +336,6 @@ void Sub::update_altitude()
     // read in baro altitude
     read_barometer();
 
-    // write altitude info to dataflash logs
     if (should_log(MASK_LOG_CTUN)) {
         Log_Write_Control_Tuning();
     }

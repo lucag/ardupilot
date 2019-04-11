@@ -83,6 +83,12 @@ static ChibiOS::Scheduler schedulerInstance;
 static ChibiOS::Util utilInstance;
 static Empty::OpticalFlow opticalFlowDriver;
 
+#ifndef HAL_NO_FLASH_SUPPORT
+static ChibiOS::Flash flashDriver;
+#else
+static Empty::Flash flashDriver;
+#endif
+
 
 #if HAL_WITH_IO_MCU
 HAL_UART_IO_DRIVER;
@@ -110,6 +116,7 @@ HAL_ChibiOS::HAL_ChibiOS() :
         &schedulerInstance,
         &utilInstance,
         &opticalFlowDriver,
+        &flashDriver,
         nullptr
         )
 {}

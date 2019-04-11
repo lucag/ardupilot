@@ -76,6 +76,7 @@
 #include <AP_JSButton/AP_JSButton.h>   // Joystick/gamepad button function assignment
 #include <AP_LeakDetector/AP_LeakDetector.h> // Leak detector
 #include <AP_TemperatureSensor/TSYS01.h>
+#include <AP_Common/AP_FWVersion.h>
 
 // Local modules
 #include "defines.h"
@@ -166,7 +167,6 @@ private:
     RC_Channel *channel_forward;
     RC_Channel *channel_lateral;
 
-    // Dataflash
     AP_Logger logger;
 
     AP_GPS gps;
@@ -178,7 +178,7 @@ private:
     Compass compass;
     AP_InertialSensor ins;
 
-    RangeFinder rangefinder{serial_manager, ROTATION_PITCH_270};
+    RangeFinder rangefinder{serial_manager};
     struct {
         bool enabled:1;
         bool alt_healthy:1; // true if we can trust the altitude from the rangefinder
@@ -229,7 +229,7 @@ private:
     union {
         struct {
             uint8_t pre_arm_check       : 1; // true if all pre-arm checks (rc, accel calibration, gps lock) have been performed
-            uint8_t logging_started     : 1; // true if dataflash logging has started
+            uint8_t logging_started     : 1; // true if logging has started
             uint8_t compass_mot         : 1; // true if we are currently performing compassmot calibration
             uint8_t motor_test          : 1; // true if we are currently performing the motors test
             uint8_t initialised         : 1; // true once the init_ardupilot function has completed.  Extended status to GCS is not sent until this completes
@@ -608,7 +608,6 @@ private:
     void init_rangefinder(void);
     void read_rangefinder(void);
     bool rangefinder_alt_ok(void);
-    void init_compass();
 #if OPTFLOW == ENABLED
     void init_optflow();
 #endif

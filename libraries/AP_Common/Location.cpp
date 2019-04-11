@@ -220,6 +220,25 @@ float Location::get_distance(const struct Location &loc2) const
     return norm(dlat, dlng) * LOCATION_SCALING_FACTOR;
 }
 
+
+/*
+  return the distance in meters in North/East plane as a N/E vector
+  from loc1 to loc2
+ */
+Vector2f Location::get_distance_NE(const Location &loc2) const
+{
+    return Vector2f((loc2.lat - lat) * LOCATION_SCALING_FACTOR,
+                    (loc2.lng - lng) * LOCATION_SCALING_FACTOR * longitude_scale());
+}
+
+// return the distance in meters in North/East/Down plane as a N/E/D vector to loc2
+Vector3f Location::get_distance_NED(const Location &loc2) const
+{
+    return Vector3f((loc2.lat - lat) * LOCATION_SCALING_FACTOR,
+                    (loc2.lng - lng) * LOCATION_SCALING_FACTOR * longitude_scale(),
+                    (alt - loc2.alt) * 0.01f);
+}
+
 // extrapolate latitude/longitude given distances (in meters) north and east
 void Location::offset(float ofs_north, float ofs_east)
 {
@@ -232,11 +251,82 @@ void Location::offset(float ofs_north, float ofs_east)
     }
 }
 
+/*
+ *  extrapolate latitude/longitude given bearing and distance
+ * Note that this function is accurate to about 1mm at a distance of
+ * 100m. This function has the advantage that it works in relative
+ * positions, so it keeps the accuracy even when dealing with small
+ * distances and floating point numbers
+ */
+void Location::offset_bearing(float bearing, float distance)
+{
+    const float ofs_north = cosf(radians(bearing)) * distance;
+    const float ofs_east  = sinf(radians(bearing)) * distance;
+    offset(ofs_north, ofs_east);
+}
+
 float Location::longitude_scale() const
 {
     float scale = cosf(lat * (1.0e-7f * DEG_TO_RAD));
     return constrain_float(scale, 0.01f, 1.0f);
 }
 
+/*
+ * convert invalid waypoint with useful data. return true if location changed
+ */
+bool Location::sanitize(const Location &defaultLoc)
+{
+    bool has_changed = false;
+    // convert lat/lng=0 to mean current point
+    if (lat == 0 && lng == 0) {
+        lat = defaultLoc.lat;
+        lng = defaultLoc.lng;
+        has_changed = true;
+    }
+
+    // convert relative alt=0 to mean current alt
+    if (alt == 0 && relative_alt) {
+        relative_alt = false;
+        alt = defaultLoc.alt;
+        has_changed = true;
+    }
+
+    // limit lat/lng to appropriate ranges
+    if (!check_latlng()) {
+        lat = defaultLoc.lat;
+        lng = defaultLoc.lng;
+        has_changed = true;
+    }
+
+    return has_changed;
+}
+
 // make sure we know what size the Location object is:
 assert_storage_size<Location, 16> _assert_storage_size_Location;
+
+
+// return bearing in centi-degrees from location to loc2
+int32_t Location::get_bearing_to(const struct Location &loc2) const
+{
+    const int32_t off_x = loc2.lng - lng;
+    const int32_t off_y = (loc2.lat - lat) / loc2.longitude_scale();
+    int32_t bearing = 9000 + atan2f(-off_y, off_x) * DEGX100;
+    if (bearing < 0) {
+        bearing += 36000;
+    }
+    return bearing;
+}
+
+/*
+  return true if lat and lng match. Ignores altitude and options
+ */
+bool Location::same_latlon_as(const Location &loc2) const
+{
+    return (lat == loc2.lat) && (lng == loc2.lng);
+}
+
+// return true when lat and lng are within range
+bool Location::check_latlng() const
+{
+    return check_lat(lat) && check_lng(lng);
+}

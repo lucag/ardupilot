@@ -11,18 +11,13 @@
 #include <stdint.h>
 #include "MAVLink_routing.h"
 #include <AP_SerialManager/AP_SerialManager.h>
-#include <AP_Mount/AP_Mount.h>
 #include <AP_Avoidance/AP_Avoidance.h>
-#include <AP_Proximity/AP_Proximity.h>
 #include <AP_Frsky_Telem/AP_Frsky_Telem.h>
-#include <AP_ServoRelayEvents/AP_ServoRelayEvents.h>
-#include <AP_Camera/AP_Camera.h>
 #include <AP_AdvancedFailsafe/AP_AdvancedFailsafe.h>
-#include <AP_VisualOdom/AP_VisualOdom.h>
-#include <AP_Common/AP_FWVersion.h>
 #include <AP_RTC/JitterCorrection.h>
 #include <AP_Common/Bitmask.h>
 #include <AP_Devo_Telem/AP_Devo_Telem.h>
+#include <RC_Channel/RC_Channel.h>
 
 #define GCS_DEBUG_SEND_MESSAGE_TIMINGS 0
 
@@ -90,6 +85,7 @@ enum ap_message : uint8_t {
     MSG_WHEEL_DISTANCE,
     MSG_MISSION_ITEM_REACHED,
     MSG_POSITION_TARGET_GLOBAL_INT,
+    MSG_POSITION_TARGET_LOCAL_NED,
     MSG_ADSB_VEHICLE,
     MSG_BATTERY_STATUS,
     MSG_AOA_SSA,
@@ -227,6 +223,7 @@ public:
     void send_home_position() const;
     void send_gps_global_origin() const;
     virtual void send_position_target_global_int() { };
+    virtual void send_position_target_local_ned() { };
     void send_servo_output_raw();
     static void send_collision_all(const AP_Avoidance::Obstacle &threat, MAV_COLLISION_ACTION behaviour);
     void send_accelcal_vehicle_position(uint32_t position);
@@ -407,7 +404,7 @@ protected:
     MAV_RESULT handle_command_flash_bootloader(const mavlink_command_long_t &packet);
 
     // generally this should not be overridden; Plane overrides it to ensure
-    // failsafe isn't triggered during calibation
+    // failsafe isn't triggered during calibration
     virtual MAV_RESULT handle_command_preflight_calibration(const mavlink_command_long_t &packet);
 
     virtual MAV_RESULT _handle_command_preflight_calibration(const mavlink_command_long_t &packet);
@@ -430,6 +427,8 @@ protected:
     MAV_RESULT handle_command_get_home_position(const mavlink_command_long_t &packet);
     MAV_RESULT handle_command_do_fence_enable(const mavlink_command_long_t &packet);
 
+    void handle_optical_flow(const mavlink_message_t* msg);
+
     // vehicle-overridable message send function
     virtual bool try_send_message(enum ap_message id);
     virtual void send_global_position_int();
@@ -451,6 +450,8 @@ protected:
 
     static constexpr const float magic_force_arm_value = 2989.0f;
     static constexpr const float magic_force_disarm_value = 21196.0f;
+
+    void manual_override(RC_Channel *c, int16_t value_in, uint16_t offset, float scaler, const uint32_t tnow, bool reversed = false);
 
 private:
 

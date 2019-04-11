@@ -725,6 +725,19 @@ struct PACKED log_WheelEncoder {
     uint8_t quality_1;
 };
 
+struct PACKED log_ADSB {
+    LOG_PACKET_HEADER;
+    uint64_t time_us;
+    uint32_t ICAO_address;
+    int32_t lat;
+    int32_t lng;
+    int32_t alt;
+    uint16_t heading;
+    uint16_t hor_velocity;
+    int16_t ver_velocity;
+    uint16_t squawk;
+};
+
 struct PACKED log_Current_Cells {
     LOG_PACKET_HEADER;
     uint64_t time_us;
@@ -907,7 +920,7 @@ struct PACKED log_GYRO {
     float GyrX, GyrY, GyrZ;
 };
 
-struct PACKED log_DF_MAV_Stats {
+struct PACKED log_MAV_Stats {
     LOG_PACKET_HEADER;
     uint32_t timestamp;
     uint32_t seqno;
@@ -1310,7 +1323,7 @@ Format characters in the format string for binary log messages
       "MODE", "QMBB",         "TimeUS,Mode,ModeNum,Rsn", "s---", "F---" }, \
     { LOG_RFND_MSG, sizeof(log_RFND), \
       "RFND", "QCBBCBB", "TimeUS,Dist1,Stat1,Orient1,Dist2,Stat2,Orient2", "sm--m--", "FB--B--" }, \
-    { LOG_DF_MAV_STATS, sizeof(log_DF_MAV_Stats), \
+    { LOG_MAV_STATS, sizeof(log_MAV_Stats), \
       "DMS", "IIIIIBBBBBBBBB",         "TimeMS,N,Dp,RT,RS,Fa,Fmn,Fmx,Pa,Pmn,Pmx,Sa,Smn,Smx", "s-------------", "C-------------" }, \
     { LOG_BEACON_MSG, sizeof(log_Beacon), \
       "BCN", "QBBfffffff",  "TimeUS,Health,Cnt,D0,D1,D2,D3,PosX,PosY,PosZ", "s--mmmmmmm", "F--BBBBBBB" }, \
@@ -1484,7 +1497,9 @@ Format characters in the format string for binary log messages
     { LOG_OPTFLOW_MSG, sizeof(log_Optflow), \
       "OF",   "QBffff",   "TimeUS,Qual,flowX,flowY,bodyX,bodyY", "s-EEEE", "F-0000" }, \
     { LOG_WHEELENCODER_MSG, sizeof(log_WheelEncoder), \
-      "WENC",  "Qfbfb", "TimeUS,Dist0,Qual0,Dist1,Qual1", "sm-m-", "F0-0-" }
+      "WENC",  "Qfbfb", "TimeUS,Dist0,Qual0,Dist1,Qual1", "sm-m-", "F0-0-" }, \
+    { LOG_ADSB_MSG, sizeof(log_ADSB), \
+      "ADSB",  "QIiiiHHhH", "TimeUS,ICAO_address,Lat,Lng,Alt,Heading,Hor_vel,Ver_vel,Squark", "s-DUmhnn-", "F-GGCBCC-" }
 
 
 // #if SBP_HW_LOGGING
@@ -1625,7 +1640,7 @@ enum LogMessages : uint8_t {
     LOG_GPAB_MSG,
     LOG_RFND_MSG,
     LOG_BAR3_MSG,
-    LOG_DF_MAV_STATS,
+    LOG_MAV_STATS,
     LOG_FORMAT_UNITS_MSG,
     LOG_UNIT_MSG,
     LOG_MULT_MSG,
@@ -1660,6 +1675,7 @@ enum LogMessages : uint8_t {
     LOG_WHEELENCODER_MSG,
     LOG_MAV_MSG,
     LOG_ERROR_MSG,
+    LOG_ADSB_MSG,
 
     _LOG_LAST_MSG_
 };

@@ -34,8 +34,8 @@ bool AP_Arming_Copter::pre_arm_checks(bool display_failure)
 
     // check if motor interlock and Emergency Stop aux switches are used
     // at the same time.  This cannot be allowed.
-    if (rc().find_channel_for_option(RC_Channel::aux_func::MOTOR_INTERLOCK) &&
-        rc().find_channel_for_option(RC_Channel::aux_func::MOTOR_ESTOP)){
+    if (rc().find_channel_for_option(RC_Channel::AUX_FUNC::MOTOR_INTERLOCK) &&
+        rc().find_channel_for_option(RC_Channel::AUX_FUNC::MOTOR_ESTOP)){
         check_failed(ARMING_CHECK_NONE, display_failure, "Interlock/E-Stop Conflict");
         return false;
     }
@@ -286,8 +286,12 @@ bool AP_Arming_Copter::gps_checks(bool display_failure)
     const AP_AHRS_NavEKF &ahrs = AP::ahrs_navekf();
 
     // always check if inertial nav has started and is ready
-    if (!ahrs.healthy()) {
-        check_failed(ARMING_CHECK_NONE, display_failure, "AHRS not healthy");
+    if (!ahrs.prearm_healthy()) {
+        const char *reason = ahrs.prearm_failure_reason();
+        if (reason == nullptr) {
+            reason = "AHRS not healthy";
+        }
+        check_failed(ARMING_CHECK_NONE, display_failure, "%s", reason);
         return false;
     }
 
@@ -453,25 +457,14 @@ bool AP_Arming_Copter::arm_checks(bool display_failure, AP_Arming::Method method
         return false;
     }
 
-    const Compass &_compass = AP::compass();
 #ifndef ALLOW_ARM_NO_COMPASS
+    const Compass &_compass = AP::compass();
     // check compass health
     if (!_compass.healthy()) {
         check_failed(ARMING_CHECK_NONE, display_failure, "Compass not healthy");
         return false;
     }
 #endif
-
-    if (_compass.is_calibrating()) {
-        check_failed(ARMING_CHECK_NONE, display_failure, "Compass calibration running");
-        return false;
-    }
-
-    //check if compass has calibrated and requires reboot
-    if (_compass.compass_cal_requires_reboot()) {
-        check_failed(ARMING_CHECK_NONE, display_failure, "Compass calibrated requires reboot");
-        return false;
-    }
 
     control_mode_t control_mode = copter.control_mode;
 
@@ -495,10 +488,10 @@ bool AP_Arming_Copter::arm_checks(bool display_failure, AP_Arming::Method method
 
     // if we are not using Emergency Stop switch option, force Estop false to ensure motors
     // can run normally
-    if (!rc().find_channel_for_option(RC_Channel::aux_func::MOTOR_ESTOP)){
+    if (!rc().find_channel_for_option(RC_Channel::AUX_FUNC::MOTOR_ESTOP)){
         SRV_Channels::set_emergency_stop(false);
         // if we are using motor Estop switch, it must not be in Estop position
-    } else if (rc().find_channel_for_option(RC_Channel::aux_func::MOTOR_ESTOP) && SRV_Channels::get_emergency_stop()){
+    } else if (rc().find_channel_for_option(RC_Channel::AUX_FUNC::MOTOR_ESTOP) && SRV_Channels::get_emergency_stop()){
         gcs().send_text(MAV_SEVERITY_CRITICAL,"Arm: Motor Emergency Stopped");
         return false;
     }
@@ -547,10 +540,12 @@ bool AP_Arming_Copter::arm_checks(bool display_failure, AP_Arming::Method method
                 return false;
             }
             // in manual modes throttle must be at zero
+            #if FRAME_CONFIG != HELI_FRAME
             if ((copter.flightmode->has_manual_throttle() || control_mode == DRIFT) && copter.channel_throttle->get_control_in() > 0) {
                 check_failed(ARMING_CHECK_RC, display_failure, "%s too high", rc_item);
                 return false;
             }
+            #endif
         }
     }
 

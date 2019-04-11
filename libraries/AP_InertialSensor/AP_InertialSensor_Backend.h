@@ -107,6 +107,7 @@ public:
         DEVTYPE_INS_ICM20648 = 0x2D,
         DEVTYPE_INS_ICM20649 = 0x2E,
         DEVTYPE_INS_ICM20602 = 0x2F,
+        DEVTYPE_INS_ICM20601 = 0x30,
     };
 
 protected:
@@ -182,22 +183,24 @@ protected:
     // set accelerometer max absolute offset for calibration
     void _set_accel_max_abs_offset(uint8_t instance, float offset);
 
-    // get accelerometer raw sample rate
-    uint32_t _accel_raw_sample_rate(uint8_t instance) const {
+    // get accelerometer raw sample rate.
+    float _accel_raw_sample_rate(uint8_t instance) const {
         return _imu._accel_raw_sample_rates[instance];
     }
 
-    // set accelerometer raw sample rate
+    // set accelerometer raw sample rate;  note that the storage type
+    // is actually float!
     void _set_accel_raw_sample_rate(uint8_t instance, uint16_t rate_hz) {
         _imu._accel_raw_sample_rates[instance] = rate_hz;
     }
     
     // get gyroscope raw sample rate
-    uint32_t _gyro_raw_sample_rate(uint8_t instance) const {
+    float _gyro_raw_sample_rate(uint8_t instance) const {
         return _imu._gyro_raw_sample_rates[instance];
     }
 
-    // set gyro raw sample rate
+    // set gyro raw sample rate; note that the storage type is
+    // actually float!
     void _set_gyro_raw_sample_rate(uint8_t instance, uint16_t rate_hz) {
         _imu._gyro_raw_sample_rates[instance] = rate_hz;
     }

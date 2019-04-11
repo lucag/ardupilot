@@ -76,6 +76,8 @@ public:
     ///
     bool read();
 
+    bool enabled() const { return _enabled; }
+
     /// Calculate the tilt-compensated heading_ variables.
     ///
     /// @param dcm_matrix			The current orientation rotation matrix
@@ -176,17 +178,6 @@ public:
     /// @param  longitude            GPS Longitude.
     ///
     void set_initial_location(int32_t latitude, int32_t longitude);
-
-    /// Program new offset values.
-    ///
-    /// @param  i                   compass instance
-    /// @param  x                   Offset to the raw mag_x value in milligauss.
-    /// @param  y                   Offset to the raw mag_y value in milligauss.
-    /// @param  z                   Offset to the raw mag_z value in milligauss.
-    ///
-    void set_and_save_offsets(uint8_t i, int x, int y, int z) {
-        set_and_save_offsets(i, Vector3f(x, y, z));
-    }
 
     // learn offsets accessor
     bool learn_offsets_enabled() const { return _learn == LEARN_INFLIGHT; }
@@ -387,6 +378,9 @@ private:
     // backend objects
     AP_Compass_Backend *_backends[COMPASS_MAX_BACKEND];
     uint8_t     _backend_count;
+
+    // whether to enable the compass drivers at all
+    AP_Int8     _enabled;
 
     // number of registered compasses.
     uint8_t     _compass_count;
