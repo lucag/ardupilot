@@ -211,6 +211,7 @@ private:
 
     void check_attitude_relax(void);
     void init_qacro(void);
+    float get_pilot_throttle(void);
     void control_qacro(void);
     void init_hover(void);
     void control_hover(void);
@@ -309,7 +310,15 @@ private:
 
     // HEARTBEAT mav_type override
     AP_Int8 mav_type;
-    
+
+    // manual throttle curve expo strength
+    AP_Float throttle_expo;
+
+    // QACRO mode max roll/pitch/yaw rates
+    AP_Float acro_roll_rate;
+    AP_Float acro_pitch_rate;
+    AP_Float acro_yaw_rate;
+
     // time we last got an EKF yaw reset
     uint32_t ekfYawReset_ms;
 

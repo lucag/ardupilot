@@ -94,7 +94,7 @@ void Copter::auto_disarm_check()
     }
 
     // if the rotor is still spinning, don't initiate auto disarm
-    if (motors->get_spool_mode() != AP_Motors::GROUND_IDLE) {
+    if (motors->get_spool_state() > AP_Motors::SpoolState::GROUND_IDLE) {
         auto_disarm_begin = tnow_ms;
         return;
     }
@@ -266,7 +266,11 @@ void Copter::init_disarm_motors()
 
 #if AUTOTUNE_ENABLED == ENABLED
     // save auto tuned parameters
-    mode_autotune.save_tuning_gains();
+    if (control_mode == AUTOTUNE) {;
+        mode_autotune.save_tuning_gains();
+    } else {
+        mode_autotune.reset();
+    }
 #endif
 
     // we are not in the air

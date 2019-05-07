@@ -121,8 +121,8 @@ public:
     void        init(AP_HAL::UARTDriver *port, mavlink_channel_t mav_chan);
     void        setup_uart(const AP_SerialManager& serial_manager, AP_SerialManager::SerialProtocol protocol, uint8_t instance);
     void        send_message(enum ap_message id);
-    void        send_text(MAV_SEVERITY severity, const char *fmt, ...);
-    void        send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list);
+    void        send_text(MAV_SEVERITY severity, const char *fmt, ...) const;
+    void        send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list) const;
     void        queued_param_send();
     void        queued_mission_request_send();
     // packetReceived is called on any successful decode of a mavlink message
@@ -532,7 +532,7 @@ private:
     int8_t next_deferred_message_to_send_cache = -1;
 
     struct deferred_message_bucket_t {
-        Bitmask ap_message_ids{MSG_LAST};
+        Bitmask<MSG_LAST> ap_message_ids;
         uint16_t interval_ms;
         uint16_t last_sent_ms; // from AP_HAL::millis16()
     };
@@ -540,7 +540,7 @@ private:
     static const uint8_t no_bucket_to_send = -1;
     static const ap_message no_message_to_send = (ap_message)-1;
     uint8_t sending_bucket_id = no_bucket_to_send;
-    Bitmask bucket_message_ids_to_send{MSG_LAST};
+    Bitmask<MSG_LAST> bucket_message_ids_to_send;
 
     ap_message next_deferred_bucket_message_to_send();
     void find_next_bucket_to_send();
@@ -548,7 +548,7 @@ private:
 
     // bitmask of IDs the code has spontaneously decided it wants to
     // send out.  Examples include HEARTBEAT (gcs_send_heartbeat)
-    Bitmask pushed_ap_message_ids{MSG_LAST};
+    Bitmask<MSG_LAST> pushed_ap_message_ids;
 
     // returns true if it is OK to send a message while we are in
     // delay callback.  In particular, when we are doing sensor init

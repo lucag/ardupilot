@@ -940,7 +940,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             except AutoTestTimeoutException as e:
                 success = True
                 pass
-            self.mav.srcSystem = old_srcSystem
+            self.mav.mav.srcSystem = old_srcSystem
             if not success:
                 raise NotAchievedException(
                     "Managed to arm with SYSID_ENFORCE set")
@@ -955,7 +955,7 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             except Exception as e:
                 comp_arm_exception = e
                 pass
-            self.mav.srcSystem = old_srcSystem
+            self.mav.mav.srcSystem = old_srcSystem
             if comp_arm_exception is not None:
                 raise comp_arm_exception
 
@@ -1024,6 +1024,53 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
                                0)
         self.wait_location(loc, accuracy=accuracy)
         self.disarm_vehicle()
+
+    def test_gcs_fence(self):
+        self.progress("Testing FENCE_POINT protocol")
+        self.set_parameter("FENCE_TOTAL", 1)
+        target_system = 1
+        target_component = 1
+
+        lat = 1.2345
+        lng = 5.4321
+        self.mav.mav.fence_point_send(target_system,
+                                      target_component,
+                                      0,
+                                      1,
+                                      lat,
+                                      lng)
+        self.progress("Requesting fence return point")
+        self.mav.mav.fence_fetch_point_send(target_system,
+                                            target_component,
+                                            0)
+        m = self.mav.recv_match(type="FENCE_POINT", blocking=True, timeout=1)
+        print("m: %s" % str(m))
+        if m is None:
+            raise NotAchievedException("Did not get fence return point back")
+        if abs(m.lat - lat) > 0.000001:
+            raise NotAchievedException("Did not get correct lat in fencepoint: got=%f want=%f" % (m.lat, lat))
+        if abs(m.lng - lng) > 0.000001:
+            raise NotAchievedException("Did not get correct lng in fencepoint: got=%f want=%f" % (m.lng, lng))
+
+        self.progress("Now testing a different value")
+        lat = 2.345
+        lng = 4.321
+        self.mav.mav.fence_point_send(target_system,
+                                      target_component,
+                                      0,
+                                      1,
+                                      lat,
+                                      lng)
+        self.progress("Requesting fence return point")
+        self.mav.mav.fence_fetch_point_send(target_system,
+                                            target_component,
+                                            0)
+        m = self.mav.recv_match(type="FENCE_POINT", blocking=True, timeout=1)
+        print("m: %s" % str(m))
+        if abs(m.lat - lat) > 0.000001:
+            raise NotAchievedException("Did not get correct lat in fencepoint: got=%f want=%f" % (m.lat, lat))
+        if abs(m.lng - lng) > 0.000001:
+            raise NotAchievedException("Did not get correct lng in fencepoint: got=%f want=%f" % (m.lng, lng))
 
     def test_offboard(self, timeout=90):
         self.load_mission("rover-guided-mission.txt")
@@ -1183,6 +1230,10 @@ Brakes have negligible effect (with=%0.2fm without=%0.2fm delta=%0.2fm)
             ("Offboard",
              "Test Offboard Control",
              self.test_offboard),
+
+            ("GCSFence",
+             "Upload and download of fence",
+             self.test_gcs_fence),
 
             ("DataFlashOverMAVLink",
              "Test DataFlash over MAVLink",

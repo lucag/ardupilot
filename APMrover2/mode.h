@@ -73,6 +73,8 @@ public:
     // returns true if vehicle can be armed or disarmed from the transmitter in this mode
     virtual bool allows_arming_from_transmitter() { return !is_autopilot_mode(); }
 
+    bool allows_stick_mixing() const { return is_autopilot_mode(); }
+
     //
     // attributes for mavlink system status reporting
     //
@@ -195,6 +197,7 @@ protected:
     // steering_out is in the range -4500 ~ +4500 with positive numbers meaning rotate clockwise
     // throttle_out is in the range -100 ~ +100
     void get_pilot_input(float &steering_out, float &throttle_out);
+    void set_steering(float steering_value);
 
     // references to avoid code churn:
     class AP_AHRS &ahrs;

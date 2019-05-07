@@ -109,6 +109,7 @@ void Plane::init_ardupilot()
     // initialise airspeed sensor
     airspeed.init();
 
+    AP::compass().set_log_bit(MASK_LOG_COMPASS);
     AP::compass().init();
 
 #if OPTFLOW == ENABLED
@@ -394,7 +395,8 @@ void Plane::startup_INS_ground(void)
 
     if (ins.gyro_calibration_timing() != AP_InertialSensor::GYRO_CAL_NEVER) {
         gcs().send_text(MAV_SEVERITY_ALERT, "Beginning INS calibration. Do not move plane");
-        hal.scheduler->delay(100);
+    } else {
+        gcs().send_text(MAV_SEVERITY_ALERT, "Skipping INS calibration");
     }
 
     ahrs.init();
@@ -500,7 +502,11 @@ bool Plane::disarm_motors(void)
     
 #if QAUTOTUNE_ENABLED
     //save qautotune gains if enabled and success
-    quadplane.qautotune.save_tuning_gains();
+    if (control_mode == &mode_qautotune) {
+        quadplane.qautotune.save_tuning_gains();
+    } else {
+        quadplane.qautotune.reset();
+    }
 #endif
 
     return true;

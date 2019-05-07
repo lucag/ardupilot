@@ -740,14 +740,14 @@ void Copter::ModeAuto::wp_run()
     }
 
     // if not armed set throttle to zero and exit immediately
-    if (!motors->armed() || !ap.auto_armed || ap.land_complete) {
+    if (is_disarmed_or_landed()) {
         make_safe_spool_down();
         wp_nav->wp_and_spline_init();
         return;
     }
 
     // set motors to full range
-    motors->set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
+    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
     // run waypoint controller
     copter.failsafe_terrain_set_status(wp_nav->update_wpnav());
@@ -770,7 +770,7 @@ void Copter::ModeAuto::wp_run()
 void Copter::ModeAuto::spline_run()
 {
     // if not armed set throttle to zero and exit immediately
-    if (!motors->armed() || !ap.auto_armed || ap.land_complete) {
+    if (is_disarmed_or_landed()) {
         make_safe_spool_down();
         wp_nav->wp_and_spline_init();
         return;
@@ -787,7 +787,7 @@ void Copter::ModeAuto::spline_run()
     }
 
     // set motors to full range
-    motors->set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
+    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
     // run waypoint controller
     wp_nav->update_spline();
@@ -811,14 +811,14 @@ void Copter::ModeAuto::land_run()
 {
 
     // if not armed set throttle to zero and exit immediately
-    if (!motors->armed() || !ap.auto_armed || ap.land_complete) {
+    if (is_disarmed_or_landed()) {
         make_safe_spool_down();
         loiter_nav->init_target();
         return;
     }
 
     // set motors to full range
-    motors->set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
+    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
     
     land_run_horizontal_control();
     land_run_vertical_control();
@@ -866,7 +866,7 @@ void Copter::ModeAuto::nav_guided_run()
 void Copter::ModeAuto::loiter_run()
 {
     // if not armed set throttle to zero and exit immediately
-    if (!motors->armed() || !ap.auto_armed || ap.land_complete) {
+    if (is_disarmed_or_landed()) {
         make_safe_spool_down();
         wp_nav->wp_and_spline_init();
         return;
@@ -879,7 +879,7 @@ void Copter::ModeAuto::loiter_run()
     }
 
     // set motors to full range
-    motors->set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
+    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
     // run waypoint and z-axis position controller
     copter.failsafe_terrain_set_status(wp_nav->update_wpnav());
@@ -893,7 +893,7 @@ void Copter::ModeAuto::loiter_run()
 void Copter::ModeAuto::loiter_to_alt_run()
 {
     // if not auto armed or motor interlock not enabled set throttle to zero and exit immediately
-    if (!motors->armed() || !ap.auto_armed || ap.land_complete || !motors->get_interlock()) {
+    if (is_disarmed_or_landed() || !motors->get_interlock()) {
         zero_throttle_and_relax_ac();
         return;
     }
@@ -972,7 +972,7 @@ void Copter::ModeAuto::payload_place_run()
     }
 
     // set motors to full range
-    motors->set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
+    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
 
     switch (nav_payload_place.state) {
     case PayloadPlaceStateType_FlyToLocation:
@@ -1509,7 +1509,7 @@ bool Copter::ModeAuto::verify_land()
 
         case LandStateType_Descending:
             // rely on THROTTLE_LAND mode to correctly update landing status
-            retval = ap.land_complete && (motors->get_spool_mode() == AP_Motors::GROUND_IDLE);
+            retval = ap.land_complete && (motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE);
             break;
 
         default:
@@ -1729,7 +1729,7 @@ bool Copter::ModeAuto::verify_RTL()
 {
     return (copter.mode_rtl.state_complete() && 
     (copter.mode_rtl.state() == RTL_FinalDescent || copter.mode_rtl.state() == RTL_Land) &&
-    (motors->get_spool_mode() == AP_Motors::GROUND_IDLE));
+    (motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE));
 }
 
 /********************************************************************************/

@@ -183,17 +183,21 @@ AP_Baro::AP_Baro()
 // the altitude() or climb_rate() interfaces can be used
 void AP_Baro::calibrate(bool save)
 {
-    gcs().send_text(MAV_SEVERITY_INFO, "Calibrating barometer");
-
-    // reset the altitude offset when we calibrate. The altitude
-    // offset is supposed to be for within a flight
-    _alt_offset.set_and_save(0);
-
     // start by assuming all sensors are calibrated (for healthy() test)
     for (uint8_t i=0; i<_num_sensors; i++) {
         sensors[i].calibrated = true;
         sensors[i].alt_ok = true;
     }
+
+    if (hal.util->was_watchdog_reset()) {
+        gcs().send_text(MAV_SEVERITY_INFO, "Baro: skipping calibration");
+        return;
+    }
+    gcs().send_text(MAV_SEVERITY_INFO, "Calibrating barometer");
+
+    // reset the altitude offset when we calibrate. The altitude
+    // offset is supposed to be for within a flight
+    _alt_offset.set_and_save(0);
 
     // let the barometer settle for a full second after startup
     // the MS5611 reads quite a long way off for the first second,

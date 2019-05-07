@@ -686,13 +686,13 @@ void GCS_MAVLINK::handle_param_value(mavlink_message_t *msg)
     mount->handle_param_value(msg);
 }
 
-void GCS_MAVLINK::send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list)
+void GCS_MAVLINK::send_textv(MAV_SEVERITY severity, const char *fmt, va_list arg_list) const
 {
     char text[MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN+1];
     hal.util->vsnprintf(text, sizeof(text), fmt, arg_list);
     gcs().send_statustext(severity, (1<<chan), text);
 }
-void GCS_MAVLINK::send_text(MAV_SEVERITY severity, const char *fmt, ...)
+void GCS_MAVLINK::send_text(MAV_SEVERITY severity, const char *fmt, ...) const
 {
     va_list arg_list;
     va_start(arg_list, fmt);
@@ -851,13 +851,12 @@ bool GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
     waypoint_request_i++;
     
     if (waypoint_request_i >= waypoint_request_last) {
-        mavlink_msg_mission_ack_send_buf(
-            msg,
-            chan,
-            msg->sysid,
-            msg->compid,
-            MAV_MISSION_ACCEPTED,
-            MAV_MISSION_TYPE_MISSION);
+        mavlink_msg_mission_ack_send(
+                chan,
+                msg->sysid,
+                msg->compid,
+                MAV_MISSION_ACCEPTED,
+                MAV_MISSION_TYPE_MISSION);
         
         send_text(MAV_SEVERITY_INFO,"Flight plan received");
         waypoint_receiving = false;
@@ -877,13 +876,12 @@ bool GCS_MAVLINK::handle_mission_item(mavlink_message_t *msg, AP_Mission &missio
 
 mission_ack:
     // we are rejecting the mission/waypoint
-    mavlink_msg_mission_ack_send_buf(
-        msg,
-        chan,
-        msg->sysid,
-        msg->compid,
-        result,
-        MAV_MISSION_TYPE_MISSION);
+    mavlink_msg_mission_ack_send(
+            chan,
+            msg->sysid,
+            msg->compid,
+            result,
+            MAV_MISSION_TYPE_MISSION);
 
     return mission_is_complete;
 }
@@ -2065,7 +2063,7 @@ void GCS_MAVLINK::handle_set_mode(mavlink_message_t* msg)
     const MAV_RESULT result = _set_mode_common(_base_mode, _custom_mode);
 
     // send ACK or NAK
-    mavlink_msg_command_ack_send_buf(msg, chan, MAVLINK_MSG_ID_SET_MODE, result);
+    mavlink_msg_command_ack_send(chan, MAVLINK_MSG_ID_SET_MODE, result);
 }
 
 /*
@@ -2537,6 +2535,19 @@ void GCS_MAVLINK::zero_rc_outputs()
  */
 MAV_RESULT GCS_MAVLINK::handle_preflight_reboot(const mavlink_command_long_t &packet)
 {
+    if (is_equal(packet.param1, 42.0f) &&
+        is_equal(packet.param2, 24.0f) &&
+        is_equal(packet.param3, 71.0f) &&
+        is_equal(packet.param4, 93.0f)) {
+        // this is a magic sequence to force the main loop to
+        // lockup. This is for testing the stm32 watchdog
+        // functionality
+        while (true) {
+            send_text(MAV_SEVERITY_WARNING,"entering lockup");
+            hal.scheduler->delay(250);
+        }
+    }
+
     if (hal.util->get_soft_armed()) {
         // refuse reboot when armed
         return MAV_RESULT_FAILED;
@@ -3721,7 +3732,7 @@ void GCS_MAVLINK::handle_command_long(mavlink_message_t *msg)
     const MAV_RESULT result = handle_command_long_packet(packet);
 
     // send ACK or NAK
-    mavlink_msg_command_ack_send_buf(msg, chan, packet.command, result);
+    mavlink_msg_command_ack_send(chan, packet.command, result);
 }
 
 MAV_RESULT GCS_MAVLINK::handle_command_do_set_roi(const Location &roi_loc)
@@ -3838,7 +3849,7 @@ void GCS_MAVLINK::handle_command_int(mavlink_message_t *msg)
     const MAV_RESULT result = handle_command_int_packet(packet);
 
     // send ACK or NAK
-    mavlink_msg_command_ack_send_buf(msg, chan, packet.command, result);
+    mavlink_msg_command_ack_send(chan, packet.command, result);
 }
 
 bool GCS_MAVLINK::try_send_compass_message(const enum ap_message id)

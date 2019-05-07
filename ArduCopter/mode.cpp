@@ -193,7 +193,7 @@ bool Copter::set_mode(control_mode_t mode, mode_reason_t reason)
 #if FRAME_CONFIG == HELI_FRAME
     // do not allow helis to enter a non-manual throttle mode if the
     // rotor runup is not complete
-    if (!ignore_checks && !new_flightmode->has_manual_throttle() && (motors->get_spool_mode() == AP_Motors::SPOOL_UP || motors->get_spool_mode() == AP_Motors::SPOOL_DOWN)) {
+    if (!ignore_checks && !new_flightmode->has_manual_throttle() && (motors->get_spool_state() == AP_Motors::SpoolState::SPOOLING_UP || motors->get_spool_state() == AP_Motors::SpoolState::SPOOLING_DOWN)) {
         gcs().send_text(MAV_SEVERITY_WARNING,"Flight mode change failed");
         AP::logger().Write_Error(LogErrorSubsystem::FLIGHT_MODE, LogErrorCode(mode));
         return false;
@@ -265,7 +265,7 @@ bool Copter::set_mode(control_mode_t mode, mode_reason_t reason)
 // called at 100hz or more
 void Copter::update_flight_mode()
 {
-    target_rangefinder_alt_used = false;
+    surface_tracking.valid_for_logging = false; // invalidate surface tracking alt, flight mode will set to true if used
 
     flightmode->run();
 }
@@ -382,7 +382,7 @@ bool Copter::Mode::_TakeOff::triggered(const float target_climb_rate) const
         return false;
     }
 
-    if (copter.motors->get_spool_mode() != AP_Motors::THROTTLE_UNLIMITED) {
+    if (copter.motors->get_spool_state() != AP_Motors::SpoolState::THROTTLE_UNLIMITED) {
         // hold aircraft on the ground until rotor speed runup has finished
         return false;
     }
@@ -390,12 +390,20 @@ bool Copter::Mode::_TakeOff::triggered(const float target_climb_rate) const
     return true;
 }
 
+bool Copter::Mode::is_disarmed_or_landed() const
+{
+    if (!motors->armed() || !ap.auto_armed || ap.land_complete) {
+        return true;
+    }
+    return false;
+}
+
 void Copter::Mode::zero_throttle_and_relax_ac(bool spool_up)
 {
     if (spool_up) {
-        motors->set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
+        motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
     } else {
-        motors->set_desired_spool_state(AP_Motors::DESIRED_GROUND_IDLE);
+        motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::GROUND_IDLE);
     }
     attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(0.0f, 0.0f, 0.0f);
     attitude_control->set_throttle_out(0.0f, false, copter.g.throttle_filt);
@@ -411,17 +419,19 @@ void Copter::Mode::zero_throttle_and_hold_attitude()
 void Copter::Mode::make_safe_spool_down()
 {
     // command aircraft to initiate the shutdown process
-    motors->set_desired_spool_state(AP_Motors::DESIRED_GROUND_IDLE);
-    switch (motors->get_spool_mode()) {
+    motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::GROUND_IDLE);
+    switch (motors->get_spool_state()) {
 
-    case AP_Motors::SHUT_DOWN:
-    case AP_Motors::GROUND_IDLE:
+    case AP_Motors::SpoolState::SHUT_DOWN:
+    case AP_Motors::SpoolState::GROUND_IDLE:
         // relax controllers during idle states
         attitude_control->reset_rate_controller_I_terms();
         attitude_control->set_yaw_target_to_current_heading();
         break;
 
-    default:
+    case AP_Motors::SpoolState::SPOOLING_UP:
+    case AP_Motors::SpoolState::THROTTLE_UNLIMITED:
+    case AP_Motors::SpoolState::SPOOLING_DOWN:
         // while transitioning though active states continue to operate normally
         break;
     }
@@ -531,6 +541,9 @@ void Copter::Mode::land_run_horizontal_control()
 
         // get pilot's desired yaw rate
         target_yaw_rate = get_pilot_desired_yaw_rate(channel_yaw->get_control_in());
+        if (!is_zero(target_yaw_rate)) {
+            auto_yaw.set_mode(AUTO_YAW_HOLD);
+        }
     }
 
 #if PRECISION_LANDING == ENABLED
@@ -580,9 +593,14 @@ void Copter::Mode::land_run_horizontal_control()
         }
     }
 
-
     // call attitude controller
-    attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(nav_roll, nav_pitch, target_yaw_rate);
+    if (auto_yaw.mode() == AUTO_YAW_HOLD) {
+        // roll & pitch from waypoint controller, yaw rate from pilot
+        attitude_control->input_euler_angle_roll_pitch_euler_rate_yaw(nav_roll, nav_pitch, target_yaw_rate);
+    } else {
+        // roll, pitch from waypoint controller, yaw heading from auto_heading()
+        attitude_control->input_euler_angle_roll_pitch_yaw(nav_roll, nav_pitch, auto_yaw.yaw(), true);
+    }
 }
 
 float Copter::Mode::throttle_hover() const
@@ -627,15 +645,15 @@ Copter::Mode::AltHoldModeState Copter::Mode::get_alt_hold_state(float target_cli
     // Alt Hold State Machine Determination
     if (!motors->armed()) {
         // the aircraft should moved to a shut down state
-        motors->set_desired_spool_state(AP_Motors::DESIRED_SHUT_DOWN);
+        motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::SHUT_DOWN);
 
         // transition through states as aircraft spools down
-        switch (motors->get_spool_mode()) {
+        switch (motors->get_spool_state()) {
 
-        case AP_Motors::SHUT_DOWN:
+        case AP_Motors::SpoolState::SHUT_DOWN:
             return AltHold_MotorStopped;
 
-        case AP_Motors::DESIRED_GROUND_IDLE:
+        case AP_Motors::SpoolState::GROUND_IDLE:
             return AltHold_Landed_Ground_Idle;
 
         default:
@@ -651,14 +669,14 @@ Copter::Mode::AltHoldModeState Copter::Mode::get_alt_hold_state(float target_cli
         // the aircraft is armed and landed
         if (target_climb_rate_cms < 0.0f && !ap.using_interlock) {
             // the aircraft should move to a ground idle state
-            motors->set_desired_spool_state(AP_Motors::DESIRED_GROUND_IDLE);
+            motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::GROUND_IDLE);
 
         } else {
             // the aircraft should prepare for imminent take off
-            motors->set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
+            motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
         }
 
-        if (motors->get_spool_mode() == AP_Motors::GROUND_IDLE) {
+        if (motors->get_spool_state() == AP_Motors::SpoolState::GROUND_IDLE) {
             // the aircraft is waiting in ground idle
             return AltHold_Landed_Ground_Idle;
 
@@ -669,7 +687,7 @@ Copter::Mode::AltHoldModeState Copter::Mode::get_alt_hold_state(float target_cli
 
     } else {
         // the aircraft is in a flying state
-        motors->set_desired_spool_state(AP_Motors::DESIRED_THROTTLE_UNLIMITED);
+        motors->set_desired_spool_state(AP_Motors::DesiredSpoolState::THROTTLE_UNLIMITED);
         return AltHold_Flying;
     }
 }
@@ -677,12 +695,6 @@ Copter::Mode::AltHoldModeState Copter::Mode::get_alt_hold_state(float target_cli
 // pass-through functions to reduce code churn on conversion;
 // these are candidates for moving into the Mode base
 // class.
-
-float Copter::Mode::get_surface_tracking_climb_rate(int16_t target_rate, float current_alt_target, float dt)
-{
-    return copter.get_surface_tracking_climb_rate(target_rate, current_alt_target, dt);
-}
-
 float Copter::Mode::get_pilot_desired_yaw_rate(int16_t stick_angle)
 {
     return copter.get_pilot_desired_yaw_rate(stick_angle);

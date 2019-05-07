@@ -1954,6 +1954,77 @@ class AutoTestCopter(AutoTest):
         if not took_off:
             raise NotAchievedException("Did not take off")
 
+    def fly_zigzag_mode(self):
+        '''test zigzag mode'''
+
+        # set channel 8 for zigzag savewp and recentre it
+        self.set_parameter("RC8_OPTION", 61)
+
+        self.takeoff(alt_min=5, mode='LOITER')
+
+        ZIGZAG = 24
+        j=0
+        while j<4:  # conduct test for all 4 directions
+            self.set_rc(8, 1500)
+            self.set_rc(4, 1420)
+            self.wait_heading(352-j*90)  # align heading with the run-way
+            self.set_rc(4, 1500)
+            self.change_mode(ZIGZAG)
+            self.set_rc(8, 1100)  # record point A
+            self.set_rc(1, 1700)  # fly side-way for 20m
+            self.wait_distance(20)
+            self.set_rc(1, 1500)
+            self.wait_groundspeed(0, 0.20)   # wait until the copter slows down
+            self.set_rc(8, 1500)    # pilot always have to cross mid position when changing for low to high position
+            self.set_rc(8, 1900)    # record point B
+
+            i=1
+            while i<2:                 # run zigzag A->B and B->A for 5 times
+                self.set_rc(2, 1300)    # fly forward for 10 meter
+                self.wait_distance(10)
+                self.set_rc(2, 1500)    # re-centre pitch rc control
+                self.wait_groundspeed(0, 0.2)   #wait until the copter slows down
+                self.set_rc(8, 1500)    # switch to mid position
+                self.set_rc(8, 1100)    # auto execute vector BA
+                self.wait_distance(17)  # wait for it to finish
+                self.wait_groundspeed(0, 0.2)   #wait until the copter slows down
+
+                self.set_rc(2, 1300)    # fly forward for 10 meter
+                self.wait_distance(10)
+                self.set_rc(2, 1500)    # re-centre pitch rc control
+                self.wait_groundspeed(0, 0.2)   #wait until the copter slows down
+                self.set_rc(8, 1500)    # switch to mid position
+                self.set_rc(8, 1900)    # auto execute vector AB
+                self.wait_distance(17)  # wait for it to finish
+                self.wait_groundspeed(0, 0.2)   #wait until the copter slows down
+                i=i+1
+            # test the case when pilot switch to manual control during the auto flight
+            self.set_rc(2, 1300)    # fly forward for 10 meter
+            self.wait_distance(10)
+            self.set_rc(2, 1500)    # re-centre pitch rc control
+            self.wait_groundspeed(0, 0.2)   #wait until the copter slows down
+            self.set_rc(8, 1500)    # switch to mid position
+            self.set_rc(8, 1100)    # switch to low position, auto execute vector BA
+            self.wait_distance(8)   # purposely switch to manual halfway
+            self.set_rc(8, 1500)
+            self.wait_groundspeed(0, 0.2)   # copter should slow down here
+            self.set_rc(2, 1300)    # manual control to fly forward
+            self.wait_distance(8)
+            self.set_rc(2, 1500)    # re-centre pitch rc control
+            self.wait_groundspeed(0, 0.2)   # wait until the copter slows down
+            self.set_rc(8, 1100)    # copter should continue mission here
+            self.wait_distance(8)   # wait for it to finish rest of BA
+            self.wait_groundspeed(0, 0.2)   #wait until the copter slows down
+            self.set_rc(8, 1500)    # switch to mid position
+            self.set_rc(8, 1900)    # switch to execute AB again
+            self.wait_distance(17)  # wait for it to finish
+            self.wait_groundspeed(0, 0.2)   # wait until the copter slows down
+            self.change_mode('LOITER')
+            j=j+1
+
+        self.do_RTL()
+
+
     def test_setting_modes_via_modeswitch(self):
         self.context_push()
         ex = None
@@ -2775,6 +2846,76 @@ class AutoTestCopter(AutoTest):
                                        (tdelta, max_good_tdelta))
         self.progress("Vehicle returned")
 
+    def test_onboard_compass_calibration(self, timeout=240):
+        twist_x = 2.1
+        twist_y = 2.2
+        twist_z = 2.3
+        ex = None
+        self.context_push()
+        try:
+            self.set_parameter("SIM_GND_BEHAV", 0)
+            self.set_parameter("AHRS_EKF_TYPE", 10)
+            self.reboot_sitl()
+
+            report = self.mav.messages.get("MAG_CAL_REPORT", None)
+            if report is not None:
+                raise PreconditionFailedException("MAG_CAL_REPORT found")
+
+            self.run_cmd(mavutil.mavlink.MAV_CMD_DO_START_MAG_CAL,
+                         1, # bitmask of compasses to calibrate
+                         0,
+                         0,
+                         0,
+                         0,
+                         0,
+                         0,
+                         timeout=1)
+            tstart = self.get_sim_time()
+            last_twist_time = 0
+            while True:
+                now = self.get_sim_time_cached()
+                if now - tstart > timeout:
+                    raise NotAchievedException("timeout before cal complete")
+                report = self.mav.messages.get("MAG_CAL_REPORT", None)
+                if report is not None:
+                    print("Report: %s" % str(report))
+                    break
+                if now - last_twist_time > 5:
+                    last_twist_time = now
+                    twist_x *= 1.1
+                    twist_y *= 1.2
+                    twist_z *= 1.3
+                    if abs(twist_x) > 10:
+                        twist_x /= -2
+                    if abs(twist_y) > 10:
+                        twist_y /= -2
+                    if abs(twist_z) > 10:
+                        twist_z /= -2
+                    self.set_parameter("SIM_TWIST_X", twist_x)
+                    self.set_parameter("SIM_TWIST_Y", twist_y)
+                    self.set_parameter("SIM_TWIST_Z", twist_z)
+                    try:
+                        self.set_parameter("SIM_TWIST_TIME", 100)
+                    except ValueError as e:
+                        # the shove resets this to zero
+                        pass
+
+                m = self.mav.recv_match(type="MAG_CAL_PROGRESS", timeout=1)
+                self.progress("progress: %s" % str(m))
+                if m is None:
+                    continue
+                att = self.mav.messages.get("ATTITUDE", None)
+                self.progress("Attitude: %f %f %f" %
+                              (math.degrees(att.roll), math.degrees(att.pitch), math.degrees(att.yaw)))
+        except Exception as e:
+            print("Exception caught: %s" % str(e))
+            ex = e
+
+        self.context_pop()
+        self.reboot_sitl()
+        if ex is not None:
+            raise ex
+
     def fly_brake_mode(self):
         # test brake mode
         self.progress("Testing brake mode")
@@ -2851,7 +2992,7 @@ class AutoTestCopter(AutoTest):
             self.loiter_to_ne(start.x + 5, start.y - 10, start.z + 10)
 
         except Exception as e:
-            self.progress("Exception caught: %s" % traceback.format_exc(e))
+            self.progress("Exception caught: %s" % self.get_exception_stacktrace(e))
             ex = e
 
         self.context_pop()
@@ -3159,9 +3300,16 @@ class AutoTestCopter(AutoTest):
              "Test mavlink MANUAL_CONTROL",
              self.test_manual_control),
 
+            # Zigzag mode test
+            ("ZigZag", "Fly ZigZag Mode", self.fly_zigzag_mode),
+
             ("PosHoldTakeOff",
              "Fly POSHOLD takeoff",
              self.fly_poshold_takeoff),
+
+            ("OnboardCompassCalibration",
+             "Test onboard compass calibration",
+             self.test_onboard_compass_calibration),
 
             ("LogDownLoad",
              "Log download",
@@ -3301,6 +3449,28 @@ class AutoTestHeli(AutoTestCopter):
         if ex is not None:
             raise ex
 
+    def fly_spline_waypoint(self):
+        """ensure basic spline functionality works"""
+        self.load_mission("copter_spline_mission.txt")
+        self.change_mode("LOITER")
+        self.wait_ready_to_arm()
+        self.arm_vehicle()
+        self.progress("Raising rotor speed")
+        self.set_rc(8, 2000)
+        self.wait_seconds(20)
+        self.change_mode("AUTO")
+        self.set_rc(3, 1500)
+        tstart = self.get_sim_time()
+        while True:
+            if not self.armed():
+                break
+            remaining = self.get_sim_time() - tstart
+            if remaining <= 0:
+                raise AutoTestTimeoutException("Vehicle did not disarm after mission")
+            self.delay_sim_time(1)
+        self.progress("Lowering rotor speed")
+        self.set_rc(8, 1000)
+
     def set_rc_default(self):
         super(AutoTestCopter, self).set_rc_default()
         self.progress("Lowering rotor speed")
@@ -3315,6 +3485,10 @@ class AutoTestHeli(AutoTestCopter):
             ("PosHoldTakeOff",
              "Fly POSHOLD takeoff",
              self.fly_heli_poshold_takeoff),
+
+            ("SplineWaypoint",
+             "Fly Spline Waypoints",
+             self.fly_spline_waypoint),
 
             ("LogDownLoad",
              "Log download",
