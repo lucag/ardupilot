@@ -35,11 +35,7 @@
 
 // Application dependencies
 #include <GCS_MAVLink/GCS.h>
-#include <AP_SerialManager/AP_SerialManager.h>   // Serial manager library
-#include <AP_GPS/AP_GPS.h>             // ArduPilot GPS library
 #include <AP_Logger/AP_Logger.h>          // ArduPilot Mega Flash Memory Library
-#include <AP_Baro/AP_Baro.h>
-#include <AP_Compass/AP_Compass.h>         // ArduPilot Mega Magnetometer Library
 #include <AP_Math/AP_Math.h>            // ArduPilot Mega Vector/Matrix math Library
 #include <AP_AccelCal/AP_AccelCal.h>                // interface and maths for accelerometer calibration
 #include <AP_InertialSensor/AP_InertialSensor.h>  // ArduPilot Mega Inertial Sensor (accel & gyro) Library
@@ -52,10 +48,7 @@
 #include <AC_AttitudeControl/AC_PosControl.h>      // Position control library
 #include <AP_Motors/AP_Motors.h>          // AP Motors library
 #include <AP_Stats/AP_Stats.h>     // statistics library
-#include <AP_RSSI/AP_RSSI.h>                   // RSSI Library
 #include <Filter/Filter.h>             // Filter library
-#include <AP_Relay/AP_Relay.h>           // APM relay
-#include <AP_ServoRelayEvents/AP_ServoRelayEvents.h>
 #include <AP_Airspeed/AP_Airspeed.h>        // needed for AHRS build
 #include <AP_Vehicle/AP_Vehicle.h>         // needed for AHRS build
 #include <AP_InertialNav/AP_InertialNav.h>     // ArduPilot Mega inertial navigation library
@@ -65,14 +58,10 @@
 #include <AP_Declination/AP_Declination.h>     // ArduPilot Mega Declination Helper Library
 #include <AP_Scheduler/AP_Scheduler.h>       // main loop scheduler
 #include <AP_RCMapper/AP_RCMapper.h>        // RC input mapping library
-#include <AP_Notify/AP_Notify.h>          // Notify library
 #include <AP_BattMonitor/AP_BattMonitor.h>     // Battery monitor library
-#include <AP_BoardConfig/AP_BoardConfig.h>     // board configuration library
-#include <AP_BoardConfig/AP_BoardConfig_CAN.h>
 #include <AP_LandingGear/AP_LandingGear.h>     // Landing Gear library
 #include <AC_InputManager/AC_InputManager.h>        // Pilot input handling library
 #include <AC_InputManager/AC_InputManager_Heli.h>   // Heli specific pilot input handling library
-#include <AP_Button/AP_Button.h>
 #include <AP_Arming/AP_Arming.h>
 #include <AP_SmartRTL/AP_SmartRTL.h>
 #include <AP_TempCalibration/AP_TempCalibration.h>
@@ -156,6 +145,9 @@
 #if CAMERA == ENABLED
  # include <AP_Camera/AP_Camera.h>
 #endif
+#if BUTTON_ENABLED == ENABLED
+ # include <AP_Button/AP_Button.h>
+#endif
 
 #if OSD_ENABLED == ENABLED
  #include <AP_OSD/AP_OSD.h>
@@ -194,7 +186,7 @@
 
 #include "mode.h"
 
-class Copter : public AP_HAL::HAL::Callbacks {
+class Copter : public AP_Vehicle {
 public:
     friend class GCS_MAVLINK_Copter;
     friend class GCS_Copter;
@@ -235,6 +227,7 @@ public:
     friend class ModeSport;
     friend class ModeStabilize;
     friend class ModeStabilize_Heli;
+    friend class ModeSystemId;
     friend class ModeThrow;
     friend class ModeZigZag;
 
@@ -257,9 +250,6 @@ private:
     // main loop scheduler
     AP_Scheduler scheduler{FUNCTOR_BIND_MEMBER(&Copter::fast_loop, void)};
 
-    // AP_Notify instance
-    AP_Notify notify;
-
     // used to detect MAVLink acks from GCS to stop compassmot
     uint8_t command_ack_counter;
 
@@ -271,17 +261,10 @@ private:
 
     AP_Logger logger;
 
-    AP_GPS gps;
-
     // flight modes convenience array
     AP_Int8 *flight_modes;
     const uint8_t num_flight_modes = 6;
 
-    AP_Baro barometer;
-    Compass compass;
-    AP_InertialSensor ins;
-
-    RangeFinder rangefinder;
     struct RangeFinderState {
         bool enabled:1;
         bool alt_healthy:1; // true if we can trust the altitude from the rangefinder
@@ -350,7 +333,12 @@ private:
     uint32_t ekfYawReset_ms;
     int8_t ekf_primary_core;
 
-    AP_SerialManager serial_manager;
+    // vibration check
+    struct {
+        bool high_vibes;    // true while high vibration are detected
+        uint32_t start_ms;  // system time high vibration were last detected
+        uint32_t clear_ms;  // system time high vibrations stopped
+    } vibration_check;
 
     // GCS selection
     GCS_Copter _gcs; // avoid using this; use gcs()
@@ -409,14 +397,6 @@ private:
 
     // intertial nav alt when we armed
     float arming_altitude_m;
-
-    // board specific config
-    AP_BoardConfig BoardConfig;
-
-#if HAL_WITH_UAVCAN
-    // board specific config for CAN bus
-    AP_BoardConfig_CAN BoardConfig_CAN;
-#endif
 
     // Failsafe
     struct {
@@ -509,12 +489,6 @@ private:
     // Used to exit the roll and pitch auto trim function
     uint8_t auto_trim_counter;
 
-    // Reference to the relay object
-    AP_Relay relay;
-
-    // handle repeated servo and relay events
-    AP_ServoRelayEvents ServoRelayEvents;
-
     // Camera
 #if CAMERA == ENABLED
     AP_Camera camera{MASK_LOG_CAMERA, current_loc};
@@ -540,9 +514,6 @@ private:
     AP_Rally_Copter rally;
 #endif
 
-    // RSSI
-    AP_RSSI rssi;
-
     // Crop Sprayer
 #if SPRAYER_ENABLED == ENABLED
     AC_Sprayer sprayer;
@@ -551,6 +522,11 @@ private:
     // Parachute release
 #if PARACHUTE == ENABLED
     AP_Parachute parachute{relay};
+#endif
+
+    // Button 
+#if BUTTON_ENABLED == ENABLED
+    AP_Button button;
 #endif
 
     // Landing Gear Controller
@@ -613,12 +589,23 @@ private:
         float takeoff_alt_cm;
     } gndeffect_state;
 
+    bool standby_active;
+
     // set when we are upgrading parameters from 3.4
     bool upgrading_frame_params;
 
     static const AP_Scheduler::Task scheduler_tasks[];
     static const AP_Param::Info var_info[];
     static const struct LogStructure log_structure[];
+
+    // enum for ESC CALIBRATION
+    enum ESCCalibrationModes : uint8_t {
+        ESCCAL_NONE = 0,
+        ESCCAL_PASSTHROUGH_IF_THROTTLE_HIGH = 1,
+        ESCCAL_PASSTHROUGH_ALWAYS = 2,
+        ESCCAL_AUTO = 3,
+        ESCCAL_DISABLED = 9,
+    };
 
     enum Failsafe_Action {
         Failsafe_Action_None           = 0,
@@ -713,6 +700,7 @@ private:
     void failsafe_ekf_event();
     void failsafe_ekf_off_event(void);
     void check_ekf_reset();
+    void check_vibration();
 
     // esc_calibration.cpp
     void esc_calibration_startup_check();
@@ -766,6 +754,9 @@ private:
     // landing_gear.cpp
     void landinggear_update();
 
+    // standby.cpp
+    void standby_update();
+
     // Log.cpp
     void Log_Write_Control_Tuning();
     void Log_Write_Performance();
@@ -785,6 +776,8 @@ private:
 #endif
     void Log_Write_Precland();
     void Log_Write_GuidedTarget(uint8_t target_type, const Vector3f& pos_target, const Vector3f& vel_target);
+    void Log_Write_SysID_Setup(uint8_t systemID_axis, float waveform_magnitude, float frequency_start, float frequency_stop, float time_fade_in, float time_const_freq, float time_record, float time_fade_out);
+    void Log_Write_SysID_Data(float waveform_time, float waveform_sample, float waveform_freq, float angle_x, float angle_y, float angle_z, float accel_x, float accel_y, float accel_z);
     void Log_Write_Vehicle_Startup_Messages();
     void log_init(void);
 
@@ -867,6 +860,7 @@ private:
     // system.cpp
     void init_ardupilot();
     void startup_INS_ground();
+    void update_dynamic_notch();
     bool position_ok() const;
     bool ekf_position_ok() const;
     bool optflow_position_ok() const;
@@ -952,6 +946,9 @@ private:
 #if MODE_SPORT_ENABLED == ENABLED
     ModeSport mode_sport;
 #endif
+#if MODE_SYSTEMID_ENABLED == ENABLED
+    ModeSystemId mode_systemid;
+#endif
 #if ADSB_ENABLED == ENABLED
     ModeAvoidADSB mode_avoid_adsb;
 #endif
@@ -980,7 +977,6 @@ public:
     void failsafe_check();      // failsafe.cpp
 };
 
-extern const AP_HAL::HAL& hal;
 extern Copter copter;
 
 using AP_HAL::millis;

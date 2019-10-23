@@ -87,6 +87,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_ToshibaCAN',
     'AP_NMEA_Output',
     'AP_Filesystem',
+    'AP_ADSB',
 ]
 
 

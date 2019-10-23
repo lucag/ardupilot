@@ -159,6 +159,12 @@ Mode *Copter::mode_from_mode_num(const Mode::Number mode)
             break;
 #endif
 
+#if MODE_SYSTEMID_ENABLED == ENABLED
+        case Mode::Number::SYSTEMID:
+            ret = (Mode *)g2.mode_systemid_ptr;
+            break;
+#endif
+
         default:
             break;
     }
@@ -311,6 +317,12 @@ void Copter::exit_mode(Mode *&old_flightmode,
     // call smart_rtl cleanup
     if (old_flightmode == &mode_smartrtl) {
         mode_smartrtl.exit();
+    }
+#endif
+
+#if MODE_FOLLOW_ENABLED == ENABLED
+    if (old_flightmode == &mode_follow) {
+        mode_follow.exit();
     }
 #endif
 

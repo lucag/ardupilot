@@ -18,6 +18,9 @@ public:
         k_param_can_baudrate,
         k_param_baro,
         k_param_buzz_volume,
+        k_param_led_brightness,
+        k_param_airspeed,
+        k_param_rangefinder,
     };
 
     AP_Int16 format_version;
@@ -25,6 +28,9 @@ public:
     AP_Int32 can_baudrate;
 #ifdef HAL_PERIPH_ENABLE_BUZZER
     AP_Int8 buzz_volume;
+#endif
+#ifdef AP_PERIPH_HAVE_LED
+    AP_Int8 led_brightness;
 #endif
 
     Parameters() {}

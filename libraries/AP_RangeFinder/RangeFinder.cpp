@@ -338,8 +338,9 @@ void RangeFinder::update(void)
             drivers[i]->update();
         }
     }
-
+#ifndef HAL_BUILD_AP_PERIPH
     Log_RFND();
+#endif
 }
 
 bool RangeFinder::_add_backend(AP_RangeFinder_Backend *backend)
@@ -501,6 +502,11 @@ void RangeFinder::detect_instance(uint8_t instance, uint8_t& serial_instance)
     case RangeFinder_TYPE_BenewakeTFmini:
         if (AP_RangeFinder_Benewake::detect(serial_instance)) {
             drivers[instance] = new AP_RangeFinder_Benewake(state[instance], params[instance], serial_instance++, AP_RangeFinder_Benewake::BENEWAKE_TFmini);
+        }
+        break;
+    case RangeFinder_TYPE_BenewakeTF03:
+        if (AP_RangeFinder_Benewake::detect(serial_instance)) {
+            drivers[instance] = new AP_RangeFinder_Benewake(state[instance], params[instance], serial_instance++, AP_RangeFinder_Benewake::BENEWAKE_TF03);
         }
         break;
     case RangeFinder_TYPE_PWM:
