@@ -74,7 +74,7 @@ def get_default_params(atype, binary):
         util.pexpect_close(sitl)
         sitl = util.start_SITL(binary, model=frame, home=home, speedup=10)
         mavproxy = util.start_MAVProxy_SITL(atype)
-        idx = mavproxy.expect('Saved [0-9]+ parameters to (\S+)')
+        mavproxy.expect('Saved [0-9]+ parameters to (\S+)')
     parmfile = mavproxy.match.group(1)
     dest = buildlogs_path('%s-defaults.parm' % atype)
     shutil.copy(parmfile, dest)
@@ -378,8 +378,10 @@ def run_step(step):
         "use_map": opts.map,
         "valgrind": opts.valgrind,
         "gdb": opts.gdb,
+        "lldb": opts.lldb,
         "gdbserver": opts.gdbserver,
         "breakpoints": opts.breakpoint,
+        "disable_breakpoints": opts.disable_breakpoints,
         "frame": opts.frame,
         "_show_test_timings": opts.show_test_timings,
     }
@@ -388,7 +390,8 @@ def run_step(step):
 
     # handle "fly.ArduCopter" etc:
     if step in tester_class_map:
-        return tester_class_map[step](binary, **fly_opts).autotest()
+        t = tester_class_map[step](binary, **fly_opts)
+        return (t.autotest(), t)
 
     specific_test_to_run = find_specific_test_to_run(step)
     if specific_test_to_run is not None:
@@ -585,13 +588,18 @@ def run_tests(steps):
 
     passed = True
     failed = []
+    failed_testinstances = dict()
     for step in steps:
         util.pexpect_close_all()
 
         t1 = time.time()
         print(">>>> RUNNING STEP: %s at %s" % (step, time.asctime()))
         try:
-            if run_step(step):
+            success = run_step(step)
+            testinstance = None
+            if type(success) == tuple:
+                (success, testinstance) = success
+            if success:
                 results.add(step, '<span class="passed-text">PASSED</span>',
                             time.time() - t1)
                 print(">>>> PASSED STEP: %s at %s" % (step, time.asctime()))
@@ -600,6 +608,10 @@ def run_tests(steps):
                 print(">>>> FAILED STEP: %s at %s" % (step, time.asctime()))
                 passed = False
                 failed.append(step)
+                if testinstance is not None:
+                    if failed_testinstances.get(step) is None:
+                        failed_testinstances[step] = []
+                    failed_testinstances[step].append(testinstance)
                 results.add(step, '<span class="failed-text">FAILED</span>',
                             time.time() - t1)
         except Exception as msg:
@@ -613,6 +625,16 @@ def run_tests(steps):
                         time.time() - t1)
             check_logs(step)
     if not passed:
+        keys = failed_testinstances.keys()
+        if len(keys):
+            print("Failure Summary:")
+        for key in keys:
+            print("  %s:" % key)
+            for testinstance in failed_testinstances[key]:
+                for failure in testinstance.fail_list:
+                    (desc, exception, debug_filename) = failure
+                    print("    %s (%s) (see %s)" % (desc, exception, debug_filename))
+
         print("FAILED %u tests: %s" % (len(failed), failed))
 
     util.pexpect_close_all()
@@ -702,19 +724,27 @@ if __name__ == "__main__":
                          default=False,
                          action='store_true',
                          help='run ArduPilot binaries under gdbserver')
+    group_sim.add_option("--lldb",
+                         default=False,
+                         action='store_true',
+                         help='run ArduPilot binaries under lldb')
     group_sim.add_option("-B", "--breakpoint",
                          type='string',
                          action="append",
                          default=[],
                          help="add a breakpoint at given location in debugger")
+    group_sim.add_option("--disable-breakpoints",
+                         default=False,
+                         action='store_true',
+                         help="disable all breakpoints before starting")
     parser.add_option_group(group_sim)
 
     opts, args = parser.parse_args()
 
     steps = [
         'prerequisites',
-        'build.All',
         'build.Binaries',
+        'build.All',
         'build.Parameters',
 
         'build.unit_tests',

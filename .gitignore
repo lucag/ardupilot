@@ -100,8 +100,6 @@ config.mk
 *.apj
 .gdbinit
 /.vscode
-.bash_history
-.pydevproject
 Parameters.html
 Parameters.md
 Parameters.rst
@@ -114,7 +112,14 @@ parameters.edn
 cmake-build-*/
 /reports/
 /GCOV_*.log
-
-.pydevproject
-.idea/
-*.iml
+way.txt
+*.wbproj
+*.wbproj
+segv_*out
+/scripts/
+/APMrover2/scripts/
+/AntennaTracker/scripts/
+/ArduCopter/scripts/
+/ArduPlane/scripts/
+/ArduSub/scripts/
+persistent.dat

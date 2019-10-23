@@ -3,20 +3,16 @@
 
 from __future__ import print_function
 
-
 import os.path
 import os
 import sys
 import subprocess
 sys.path.insert(0, 'Tools/ardupilotwaf/')
 
-import waftools
-import boards
 import ardupilotwaf
+import boards
 
 from waflib import Build, ConfigSet, Configure, Context, Utils
-
-
 
 # TODO: implement a command 'waf help' that shows the basic tasks a
 # developer might want to do: e.g. how to configure a board, compile a
@@ -43,7 +39,6 @@ def _set_build_context_variant(board):
             continue
         c.variant = board
 
-
 def init(ctx):
     env = ConfigSet.ConfigSet()
     try:
@@ -62,27 +57,24 @@ def init(ctx):
     # define the variant build commands according to the board
     _set_build_context_variant(board)
 
-
 def options(opt):
     opt.load('compiler_cxx compiler_c waf_unit_test python')
     opt.load('ardupilotwaf')
     opt.load('build_summary')
-    opt.load('eclipse', tooldir=waftools.location)
 
     g = opt.ap_groups['configure']
 
     boards_names = boards.get_boards_names()
     removed_names = boards.get_removed_boards()
     g.add_option('--board',
-                 action='store',
-                 choices=boards_names + removed_names,
-                 default=None,
-                 help='Target board to build, choices are %s.' % ', '.join(boards_names))
+        action='store',
+        default=None,
+        help='Target board to build, choices are %s.' % ', '.join(boards_names))
 
     g.add_option('--debug',
-                 action='store_true',
-                 default=False,
-                 help='Configure as debug variant.')
+        action='store_true',
+        default=False,
+        help='Configure as debug variant.')
 
     g.add_option('--toolchain',
         action='store',
@@ -90,58 +82,53 @@ def options(opt):
         help='Override default toolchain used for the board. Use "native" for using the host toolchain.')
 
     g.add_option('--disable-gccdeps',
-                 action='store_true',
-                 default=False,
-                 help='Disable the use of GCC dependencies output method and use waf default method.')
+        action='store_true',
+        default=False,
+        help='Disable the use of GCC dependencies output method and use waf default method.')
 
     g.add_option('--enable-asserts',
-                 action='store_true',
-                 default=False,
-                 help='enable OS level asserts.')
-
-    g.add_option('--use-nuttx-iofw',
-                 action='store_true',
-                 default=False,
-                 help='use old NuttX IO firmware for IOMCU')
+        action='store_true',
+        default=False,
+        help='enable OS level asserts.')
 
     g.add_option('--bootloader',
-                 action='store_true',
-                 default=False,
-                 help='Configure for building a bootloader.')
+        action='store_true',
+        default=False,
+        help='Configure for building a bootloader.')
 
     g.add_option('--no-autoconfig',
-                 dest='autoconfig',
-                 action='store_false',
-                 default=True,
-                 help='''Disable autoconfiguration feature. By default, the build system
+        dest='autoconfig',
+        action='store_false',
+        default=True,
+        help='''Disable autoconfiguration feature. By default, the build system
 triggers a reconfiguration whenever it thinks it's necessary - this
 option disables that.
 ''')
 
     g.add_option('--no-submodule-update',
-                 dest='submodule_update',
-                 action='store_false',
-                 default=True,
-                 help='''Don't update git submodules. Useful for building with
+        dest='submodule_update',
+        action='store_false',
+        default=True,
+        help='''Don't update git submodules. Useful for building with
 submodules at specific revisions.
 ''')
 
     g.add_option('--enable-header-checks', action='store_true',
-                 default=False,
-                 help="Enable checking of headers")
+        default=False,
+        help="Enable checking of headers")
 
     g.add_option('--default-parameters',
-                 default=None,
-                 help='set default parameters to embed in the firmware')
+        default=None,
+        help='set default parameters to embed in the firmware')
 
     g.add_option('--enable-math-check-indexes',
                  action='store_true',
                  default=False,
                  help="Enable checking of math indexes")
 
-    g.add_option('--enable-scripting', action='store_true',
+    g.add_option('--disable-scripting', action='store_true',
                  default=False,
-                 help="Enable onboard scripting engine")
+                 help="Disable onboard scripting engine")
 
     g.add_option('--scripting-checks', action='store_true',
                  default=True,
@@ -157,36 +144,36 @@ submodules at specific revisions.
             g.add_option(option)
 
     g.add_option('--apstatedir',
-                 action='store',
-                 default='',
-                 help='''Where to save data like parameters, log and terrain.
+        action='store',
+        default='',
+        help='''Where to save data like parameters, log and terrain.
 This is the --localstatedir + ArduPilots subdirectory [default:
 board-dependent, usually /var/lib/ardupilot]''')
 
     g.add_option('--rsync-dest',
-                 dest='rsync_dest',
-                 action='store',
-                 default='',
-                 help='''Destination for the rsync Waf command. It can be passed during
+        dest='rsync_dest',
+        action='store',
+        default='',
+        help='''Destination for the rsync Waf command. It can be passed during
 configuration in order to save typing.
 ''')
 
     g.add_option('--enable-benchmarks',
-                 action='store_true',
-                 default=False,
-                 help='Enable benchmarks.')
+        action='store_true',
+        default=False,
+        help='Enable benchmarks.')
 
     g.add_option('--enable-lttng', action='store_true',
-                 default=False,
-                 help="Enable lttng integration")
+        default=False,
+        help="Enable lttng integration")
 
     g.add_option('--disable-libiio', action='store_true',
-                 default=False,
-                 help="Don't use libiio even if supported by board and dependencies available")
+        default=False,
+        help="Don't use libiio even if supported by board and dependencies available")
 
     g.add_option('--disable-tests', action='store_true',
-                 default=False,
-                 help="Disable compilation and test execution")
+        default=False,
+        help="Disable compilation and test execution")
 
     g.add_option('--enable-sfml', action='store_true',
                  default=False,
@@ -196,120 +183,27 @@ configuration in order to save typing.
                  default=False,
                  help="Enable SFML audio library")
 
+    g.add_option('--sitl-osd', action='store_true',
+                 default=False,
+                 help="Enable SITL OSD")
+
+    g.add_option('--sitl-rgbled', action='store_true',
+                 default=False,
+                 help="Enable SITL RGBLed")
+
+    g.add_option('--build-dates', action='store_true',
+                 default=False,
+                 help="Include build date in binaries.  Appears in AUTOPILOT_VERSION.os_sw_version")
+
     g.add_option('--sitl-flash-storage',
         action='store_true',
         default=False,
         help='Configure for building SITL with flash storage emulation.')
     
     g.add_option('--static',
-                 action='store_true',
-                 default=False,
-                 help='Force a static build')
-
-
-    g.add_option("--enable-gcov",
-        help=("Enable gcov code coverage analysis."
-             " WARNING: this option only has effect "
-             "with the configure command. "
-             "You should also add --lcov-report to your build command."),
-        action="store_true", default=False,
-        dest="enable_gcov")
-
-    g.add_option("--lcov-report",
-        help=("Generates a lcov code coverage report "
-             "(use this option at build time, not in configure)"),
-        action="store_true", default=False,
-        dest="lcov_report")
-
-
-
-# EXECUTE enough code via the autotest tool to see coverage results afterwards, but don't build/rebuild anything
-# our aim here is to try to execute as many code path/s as we have available to us, and we'll afterward report
-# on the percentage of code executed and not executed etc.
-def	run_coverage_tests(bld):
-
-    FNULL = open(os.devnull, 'w')
-
-    #tests = ['fly.ArduPlane']
-    #tests = ['fly.ArduCopter','fly.ArduPlane']
-    tests = ['fly.ArduCopter','fly.ArduPlane', 'fly.QuadPlane', 'drive.APMrover2', 'dive.ArduSub']
-
-    for test in tests:
-        print("LCOV/GCOV -> "+test+" started.... this will take quite some time...")
-        testcmd = '( ./Tools/autotest/autotest.py --speedup=5 --timeout=14400 --debug --no-configure '+test+' ) '
-        print("Coverage Tests Executing:"+testcmd+" > ./GCOV_"+test+".log")
-        FLOG = open("./GCOV_"+test+".log", 'w')
-        if subprocess.Popen(testcmd, shell=True , stdout=FLOG, stderr=FNULL).wait():
-	        print("LCOV/GCOV -> "+test+" see ./GCOV_"+test+".log for log of activity)")
-	        raise SystemExit(1)
-        print("LCOV/GCOV -> "+test+" succeeded")
-        FLOG.close()
-
-    #TODO add any other execution path/s we can to maximise the actually used code, can we run other tests or things?
-    # eg run.unit_tests, run.examples , test.AntennaTracker or other things?
-
-
-def lcov_report(bld):
-    """
-    Generates the coverage report
-    :param bld: temporal options context
-    :type bld: wscript.tmp
-    """
-    env = bld.env
-    REPORTS = "reports"
-
-    if not env.GCOV_ENABLED:
-        raise WafError("project not configured for code coverage;"
-                       " reconfigure with --enable-gcov")
-
-    run_coverage_tests(bld)
-    lcov_report_dir = os.path.join(REPORTS, "lcov-report")
-    try:
-        if not os.path.exists(REPORTS):
-            os.mkdir(REPORTS)
-
-        create_dir_command = "rm -rf " + lcov_report_dir
-        create_dir_command += " && mkdir " + lcov_report_dir
-
-        print (create_dir_command );
-        if subprocess.Popen(create_dir_command, shell=True).wait():
-            raise SystemExit(1)
-
-        info_file = os.path.join(lcov_report_dir, "lcov.info")
-
-        FLOG = open("GCOV_lcov.log", 'w')
-        FNULL = open(os.devnull, 'w')
-
-        lcov_command =\
-            "lcov --no-external --capture --directory . -o " + info_file
-        lcov_command +=\
-            " && lcov --remove " + info_file + " \".waf*\" -o " + info_file
-
-        print("LCOV/GCOV executing lcov -> ")
-        print ("\t"+lcov_command + " > ./GCOV_lcov.log")
-        if subprocess.Popen(lcov_command, shell=True, stdout=FLOG, stderr=FNULL).wait():
-            raise SystemExit(1)
-        FLOG.close()
-
-
-        FLOG = open("GCOV_genhtml.log", 'w')
-        genhtml_command = "genhtml " + info_file
-        genhtml_command += " -o " + lcov_report_dir
-        print("LCOV/GCOV building html report -> ")
-        print ("\t"+genhtml_command + " > ./GCOV_genhtml.log")
-        if subprocess.Popen(genhtml_command, shell=True, stdout=FLOG, stderr=FNULL).wait():
-            raise SystemExit(1)
-        FLOG.close()
-
-    except:
-        print (\
-            "LCOV/GCOV -> Problems running coverage. Try manually" );
-
-    finally:
-        print (\
-            "LCOV/GCOV -> Coverage successful. Open " + lcov_report_dir +\
-            "/index.html" );
-
+        action='store_true',
+        default=False,
+        help='Force a static build')
 
 def _collect_autoconfig_files(cfg):
     for m in sys.modules.values():
@@ -329,15 +223,8 @@ def _collect_autoconfig_files(cfg):
                 cfg.hash = Utils.h_list((cfg.hash, f.read()))
                 cfg.files.append(p)
 
-
 def configure(cfg):
-    cfg.load('eclipse')
-
 	# we need to enable debug mode when building for gconv, and force it to sitl
-    if cfg.options.enable_gcov:
-        cfg.options.debug = True
-        cfg.options.board = 'sitl'
-
     if cfg.options.board is None:
         cfg.options.board = 'sitl'
 
@@ -359,7 +246,6 @@ def configure(cfg):
     cfg.env.DEBUG = cfg.options.debug
     cfg.env.ENABLE_ASSERTS = cfg.options.enable_asserts
     cfg.env.BOOTLOADER = cfg.options.bootloader
-    cfg.env.USE_NUTTX_IOFW = cfg.options.use_nuttx_iofw
 
     cfg.env.OPTIONS = cfg.options.__dict__
 
@@ -367,21 +253,6 @@ def configure(cfg):
     cfg.define('WAF_BUILD', 1)
 
     cfg.msg('Autoconfiguration', 'enabled' if cfg.options.autoconfig else 'disabled')
-
-    #Sets the lcov flag if is configurated
-    if cfg.options.enable_gcov:
-        cfg.start_msg("GCOV code coverage analysis")
-        cfg.env.GCOV_ENABLED = True
-        cfg.env.append_value('CCFLAGS', '-fprofile-arcs')
-        cfg.env.append_value('CCFLAGS', '-ftest-coverage')
-        cfg.env.append_value('CXXFLAGS', '-fprofile-arcs')
-        cfg.env.append_value('CXXFLAGS', '-ftest-coverage')
-        cfg.env.append_value('LINKFLAGS', '-lgcov')
-        cfg.env.append_value('LINKFLAGS', '-coverage')
-        cfg.end_msg('yes' , color='RED')
-    else:
-        cfg.start_msg("GCOV code coverage analysis")
-        cfg.end_msg('no' , color='GREEN')
 
     if cfg.options.static:
         cfg.msg('Using static linking', 'yes', color='YELLOW')
@@ -428,10 +299,10 @@ def configure(cfg):
         cfg.end_msg('disabled', color='YELLOW')
 
     cfg.start_msg('Scripting')
-    if cfg.options.enable_scripting:
-        cfg.end_msg('enabled')
-    else:
+    if cfg.options.disable_scripting:
         cfg.end_msg('disabled', color='YELLOW')
+    else:
+        cfg.end_msg('enabled')
 
     cfg.start_msg('Scripting runtime checks')
     if cfg.options.scripting_checks:
@@ -469,7 +340,6 @@ def configure(cfg):
 
     _collect_autoconfig_files(cfg)
 
-
 def collect_dirs_to_recurse(bld, globs, **kw):
     dirs = []
     globs = Utils.to_list(globs)
@@ -483,10 +353,8 @@ def collect_dirs_to_recurse(bld, globs, **kw):
             dirs.append(d.parent.relpath())
     return dirs
 
-
 def list_boards(ctx):
     print(*boards.get_boards_names())
-
 
 def board(ctx):
     env = ConfigSet.ConfigSet()
@@ -499,7 +367,6 @@ def board(ctx):
 
     print('Board configured to: {}'.format(env.BOARD))
 
-
 def _build_cmd_tweaks(bld):
     if bld.cmd == 'check-all':
         bld.options.all_tests = True
@@ -509,7 +376,6 @@ def _build_cmd_tweaks(bld):
         if not bld.env.HAS_GTEST:
             bld.fatal('check: gtest library is required')
         bld.options.clear_failed_tests = True
-
 
 def _build_dynamic_sources(bld):
     if not bld.env.BOOTLOADER:
@@ -521,15 +387,15 @@ def _build_dynamic_sources(bld):
             # this below is not ideal, mavgen tool should set this, but that's not
             # currently possible
             export_includes=[
-                bld.bldnode.make_node('libraries').abspath(),
-                bld.bldnode.make_node('libraries/GCS_MAVLink').abspath(),
+            bld.bldnode.make_node('libraries').abspath(),
+            bld.bldnode.make_node('libraries/GCS_MAVLink').abspath(),
             ],
-        )
+            )
 
-    if bld.get_board().with_uavcan or bld.env.HAL_WITH_UAVCAN == True:
+    if bld.get_board().with_uavcan or bld.env.HAL_WITH_UAVCAN==True:
         bld(
             features='uavcangen',
-            source=bld.srcnode.ant_glob('modules/uavcan/dsdl/uavcan/**/*.uavcan'),
+            source=bld.srcnode.ant_glob('modules/uavcan/dsdl/* libraries/AP_UAVCAN/dsdl/*', dir=True, src=False),
             output_dir='modules/uavcan/libuavcan/include/dsdlc_generated',
             name='uavcan',
             export_includes=[
@@ -552,7 +418,6 @@ def _build_dynamic_sources(bld):
         bld.bldnode.abspath(),
     ])
 
-
 def _build_common_taskgens(bld):
     # NOTE: Static library with vehicle set to UNKNOWN, shared by all
     # the tools and examples. This is the first step until the
@@ -569,7 +434,6 @@ def _build_common_taskgens(bld):
 
     if bld.env.HAS_GBENCHMARK:
         bld.libbenchmark()
-
 
 def _build_recursion(bld):
     common_dirs_patterns = [
@@ -605,6 +469,11 @@ def _build_recursion(bld):
     if bld.env.IOMCU_FW is not None:
         if bld.env.IOMCU_FW:
             dirs_to_recurse.append('libraries/AP_IOMCU/iofirmware')
+
+    if bld.env.PERIPH_FW is not None:
+        if bld.env.PERIPH_FW:
+            dirs_to_recurse.append('Tools/AP_Periph')
+
     for p in hal_dirs_patterns:
         dirs_to_recurse += collect_dirs_to_recurse(
             bld,
@@ -619,7 +488,6 @@ def _build_recursion(bld):
     for d in dirs_to_recurse:
         bld.recurse(d)
 
-
 def _build_post_funs(bld):
     if bld.cmd == 'check':
         bld.add_post_fun(ardupilotwaf.test_summary)
@@ -629,15 +497,11 @@ def _build_post_funs(bld):
     if bld.env.SUBMODULE_UPDATE:
         bld.git_submodule_post_fun()
 
-    if bld.env.GCOV_ENABLED:
-      bld.add_post_fun(lcov_report)
-
 def _load_pre_build(bld):
     '''allow for a pre_build() function in build modules'''
     brd = bld.get_board()
     if getattr(brd, 'pre_build', None):
-        brd.pre_build(bld)
-
+        brd.pre_build(bld)    
 
 def build(bld):
     config_hash = Utils.h_file(bld.bldnode.make_node('ap_config.h').abspath())
@@ -676,29 +540,26 @@ def build(bld):
 
     _build_post_funs(bld)
 
-
 ardupilotwaf.build_command('check',
-                           program_group_list='all',
-                           doc='builds all programs and run tests',
-                           )
-
+    program_group_list='all',
+    doc='builds all programs and run tests',
+)
 ardupilotwaf.build_command('check-all',
-                           program_group_list='all',
-                           doc='shortcut for `waf check --alltests`',
-                           )
+    program_group_list='all',
+    doc='shortcut for `waf check --alltests`',
+)
 
-for name in ('antennatracker', 'copter', 'heli', 'plane', 'rover', 'sub', 'bootloader', 'iofirmware'):
+for name in ('antennatracker', 'copter', 'heli', 'plane', 'rover', 'sub', 'bootloader','iofirmware','AP_Periph'):
     ardupilotwaf.build_command(name,
-                               program_group_list=name,
-                               doc='builds %s programs' % name,
-                               )
+        program_group_list=name,
+        doc='builds %s programs' % name,
+    )
 
 for program_group in ('all', 'bin', 'tools', 'examples', 'tests', 'benchmarks'):
     ardupilotwaf.build_command(program_group,
-                               program_group_list=program_group,
-                               doc='builds all programs of %s group' % program_group,
-                               )
-
+        program_group_list=program_group,
+        doc='builds all programs of %s group' % program_group,
+    )
 
 class LocalInstallContext(Build.InstallContext):
     """runs install using BLD/install as destdir, where BLD is the build variant directory"""
@@ -714,7 +575,6 @@ class LocalInstallContext(Build.InstallContext):
         r = super(LocalInstallContext, self).execute()
         self.options.destdir = old_destdir
         return r
-
 
 class RsyncContext(LocalInstallContext):
     """runs localinstall and then rsyncs BLD/install with the target system"""
