@@ -106,6 +106,10 @@ const AP_Scheduler::Task Plane::scheduler_tasks[] = {
 #if LANDING_GEAR_ENABLED == ENABLED
     SCHED_TASK(landing_gear_update, 5, 50),
 #endif
+#if EFI_ENABLED
+    SCHED_TASK(efi_update,             10,    200),
+#endif
+    SCHED_TASK(update_dynamic_notch,   50,    200),
 };
 
 constexpr int8_t Plane::_failsafe_priorities[7];
@@ -305,6 +309,13 @@ void Plane::compass_save()
     }
 }
 
+void Plane::efi_update(void)
+{
+#if EFI_ENABLED
+    g2.efi.update();
+#endif
+}
+
 /*
   once a second update the airspeed calibration ratio
  */
@@ -453,7 +464,7 @@ void Plane::update_navigation()
               are within the maximum of the stopping distance and the
               RTL_RADIUS
              */
-            set_mode(mode_qrtl, MODE_REASON_UNKNOWN);
+            set_mode(mode_qrtl, ModeReason::UNKNOWN);
             break;
         } else if (g.rtl_autoland == 1 &&
             !auto_state.checked_for_autoland &&
@@ -462,7 +473,7 @@ void Plane::update_navigation()
             // we've reached the RTL point, see if we have a landing sequence
             if (mission.jump_to_landing_sequence()) {
                 // switch from RTL -> AUTO
-                set_mode(mode_auto, MODE_REASON_UNKNOWN);
+                set_mode(mode_auto, ModeReason::UNKNOWN);
             }
 
             // prevent running the expensive jump_to_landing_sequence
@@ -474,7 +485,7 @@ void Plane::update_navigation()
             // Go directly to the landing sequence
             if (mission.jump_to_landing_sequence()) {
                 // switch from RTL -> AUTO
-                set_mode(mode_auto, MODE_REASON_UNKNOWN);
+                set_mode(mode_auto, ModeReason::UNKNOWN);
             }
 
             // prevent running the expensive jump_to_landing_sequence

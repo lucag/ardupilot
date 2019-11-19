@@ -20,7 +20,7 @@ define STORAGE_FLASH_PAGE 126
 define HAL_STORAGE_SIZE 800
 
 # board ID for firmware load
-APJ_BOARD_ID 3
+APJ_BOARD_ID 1003
 
 # setup build for a peripheral firmware
 env AP_PERIPH 1
@@ -127,8 +127,6 @@ define HAL_DISABLE_LOOP_DELAY
 
 define HAL_USE_I2C TRUE
 define STM32_I2C_USE_I2C1 TRUE
-
-define HAL_NO_ROMFS_SUPPORT
 
 define HAL_UART_MIN_TX_SIZE 256
 define HAL_UART_MIN_RX_SIZE 128

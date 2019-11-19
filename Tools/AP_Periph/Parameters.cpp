@@ -29,6 +29,11 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
 
     // can node baudrate
     GSCALAR(can_baudrate,     "CAN_BAUDRATE", 1000000),
+
+#if !defined(HAL_NO_FLASH_SUPPORT) && !defined(HAL_NO_ROMFS_SUPPORT)
+    // trigger bootloader flash
+    GSCALAR(flash_bootloader,     "FLASH_BOOTLOADER", 0),
+#endif
     
 #ifdef HAL_PERIPH_ENABLE_BUZZER
     GSCALAR(buzz_volume,     "BUZZER_VOLUME", 100),
@@ -63,6 +68,10 @@ const AP_Param::Info AP_Periph_FW::var_info[] = {
     // @Group: ARSP
     // @Path: ../../libraries/AP_Airspeed/AP_Airspeed.cpp
     GOBJECT(airspeed, "ARSP", AP_Airspeed),
+#endif
+
+#ifdef HAL_PERIPH_ENABLE_RANGEFINDER
+    GSCALAR(rangefinder_baud, "RNGFND_BAUDRATE", 115200),
 #endif
 
 #ifdef HAL_PERIPH_ENABLE_RANGEFINDER

@@ -110,7 +110,11 @@ bool Copter::ekf_over_threshold()
     if (mag_variance.length() >= g.fs_ekf_thresh) {
         over_thresh_count++;
     }
-    if (!optflow.healthy() && (vel_variance >= (2.0f * g.fs_ekf_thresh))) {
+    bool optflow_healthy = false;
+#if OPTFLOW == ENABLED
+    optflow_healthy = optflow.healthy();
+#endif
+    if (!optflow_healthy && (vel_variance >= (2.0f * g.fs_ekf_thresh))) {
         over_thresh_count += 2;
     } else if (vel_variance >= g.fs_ekf_thresh) {
         over_thresh_count++;
@@ -158,14 +162,14 @@ void Copter::failsafe_ekf_event()
     switch (g.fs_ekf_action) {
         case FS_EKF_ACTION_ALTHOLD:
             // AltHold
-            if (failsafe.radio || !set_mode(Mode::Number::ALT_HOLD, MODE_REASON_EKF_FAILSAFE)) {
-                set_mode_land_with_pause(MODE_REASON_EKF_FAILSAFE);
+            if (failsafe.radio || !set_mode(Mode::Number::ALT_HOLD, ModeReason::EKF_FAILSAFE)) {
+                set_mode_land_with_pause(ModeReason::EKF_FAILSAFE);
             }
             break;
         case FS_EKF_ACTION_LAND:
         case FS_EKF_ACTION_LAND_EVEN_STABILIZE:
         default:
-            set_mode_land_with_pause(MODE_REASON_EKF_FAILSAFE);
+            set_mode_land_with_pause(ModeReason::EKF_FAILSAFE);
             break;
     }
 }
@@ -191,7 +195,7 @@ void Copter::check_ekf_reset()
     if (new_ekfYawReset_ms != ekfYawReset_ms) {
         attitude_control->inertial_frame_reset();
         ekfYawReset_ms = new_ekfYawReset_ms;
-        Log_Write_Event(DATA_EKF_YAW_RESET);
+        AP::logger().Write_Event(LogEvent::EKF_YAW_RESET);
     }
 
 #if AP_AHRS_NAVEKF_AVAILABLE

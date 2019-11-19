@@ -106,6 +106,10 @@ public:
     // channel group masks
     const uint8_t ch_masks[3] = { 0x03,0x0C,0xF0 };
 
+    static AP_IOMCU *get_singleton(void) {
+        return singleton;
+    }
+
 private:
     AP_HAL::UARTDriver &uart;
 
@@ -215,7 +219,7 @@ private:
 
     // firmware upload
     const char *fw_name = "io_firmware.bin";
-    uint8_t *fw;
+    const uint8_t *fw;
     uint32_t fw_size;
 
     size_t write_wait(const uint8_t *pkt, uint8_t len);
@@ -237,6 +241,8 @@ private:
     bool check_crc(void);
     void handle_repeated_failures();
     void check_iomcu_reset();
+
+    static AP_IOMCU *singleton;
 
     enum {
         PROTO_NOP               = 0x00,
@@ -268,6 +274,10 @@ private:
 
         PROG_MULTI_MAX    = 248,      /**< protocol max is 255, must be multiple of 4 */
     };
+};
+
+namespace AP {
+    AP_IOMCU *iomcu(void);
 };
 
 #endif // HAL_WITH_IO_MCU

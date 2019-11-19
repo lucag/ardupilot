@@ -1,3 +1,51 @@
+Release 4.0.1beta1, 17th November 2019
+--------------------------------------
+
+This is a minor release with a few bug fixes and enhancements for the
+4.0 stable version.
+
+Changes are:
+
+ - Added Q_ASSIST_ALT parameter which offers a way for VTOL assistance
+   at low altitudes
+
+ - fixed channels 5 and 6 on the MatekF765-Wing
+
+ - fixed a bug with sending data on a full UART in mavlink parameter
+   download
+
+ - added TECS_LAND_PMIN for constraining pitch minimum during landing
+
+ - fixed use of UAVCAN primary GPS with UART secondary GPS
+
+ - fixed failover between rangefinders of same orientation
+
+ - added RC option for TAKEOFF mode
+
+ - fixed logging of current on secondary battery monitors
+
+ - fixed register checking on DPS280 for mRoControlZeroF7
+
+ - added clock panel to OSD
+
+ - fixed B/E led brightness on Pixhawk4
+
+ - support RTCM injection to UAVCAN GPS for RTK support
+
+Happy flying!
+
+Release 4.0.0, 28th October 2019
+--------------------------------
+
+The final release of stable 4.0.0 has just one change from beta4,
+which is to fix a bug in the new TAKEOFF flight mode.
+
+Many thanks to everyone who has been testing the 4.0 release, and
+special thanks to Henry for his fantastic work in bringing the wiki up
+to date for this release!
+
+Happy flying!
+
 Release 4.0.0beta4, 19th October 2019
 ------------------------------------
 
