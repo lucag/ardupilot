@@ -32,6 +32,7 @@
 #include <AP_Baro/AP_Baro.h>
 #include <AP_RangeFinder/AP_RangeFinder.h>
 #include <AP_Terrain/AP_Terrain.h>
+#include <AP_Scripting/AP_Scripting.h>
 
 #if HAL_WITH_UAVCAN
   #include <AP_BoardConfig/AP_BoardConfig_CAN.h>
@@ -706,6 +707,13 @@ bool AP_Arming::system_checks(bool report)
             return false;
         }
 #endif
+#ifdef ENABLE_SCRIPTING
+        const AP_Scripting *scripting = AP_Scripting::get_singleton();
+        if ((scripting != nullptr) && scripting->enabled() && scripting->init_failed()) {
+            check_failed(ARMING_CHECK_SYSTEM, report, "Scripting out of memory");
+            return false;
+        }
+#endif
     }
     if (AP::internalerror().errors() != 0) {
         check_failed(report, "Internal errors (0x%x)", (unsigned int)AP::internalerror().errors());
@@ -864,7 +872,7 @@ bool AP_Arming::arm(AP_Arming::Method method, const bool do_arming_checks)
         return false;
     }
 
-    if (!do_arming_checks || (pre_arm_checks(true) && arm_checks(method))) {
+    if ((!do_arming_checks && mandatory_checks(true)) || (pre_arm_checks(true) && arm_checks(method))) {
         armed = true;
 
         //TODO: Log motor arming
