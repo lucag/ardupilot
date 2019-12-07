@@ -453,10 +453,17 @@ class AutoTest(ABC):
         self.stop_SITL()
         self.start_SITL(customisations=customisations, wipe=False)
         self.wait_heartbeat()
+        # we also need to wait for MAVProxy to requests streams again
+        # - in particular, RC_CHANNELS.
+        m = self.mav.recv_match(type='RC_CHANNELS', blocking=True, timeout=15)
+        if m is None:
+            raise NotAchievedException("No RC_CHANNELS message after restarting SITL")
 
     def reset_SITL_commandline(self):
+        self.progress("Resetting SITL commandline to default")
         self.stop_SITL()
         self.start_SITL(wipe=False)
+        self.progress("Reset SITL commandline to default")
 
     def stop_SITL(self):
         self.progress("Stopping SITL")
@@ -619,6 +626,8 @@ class AutoTest(ABC):
         self.mavproxy.send("set shownoise 0\n")
         self.mavproxy.send("log download latest %s\n" % filename)
         self.mavproxy.expect("Finished downloading", timeout=timeout)
+        self.mavproxy.send("module unload log\n")
+        self.mavproxy.expect("Unloaded module log")
         self.drain_mav_unparsed()
         self.wait_heartbeat()
         self.wait_heartbeat()
